@@ -1,0 +1,481 @@
+---
+title: "Homework 2 - STAT 601"
+author: "Kevin Kuipers (Completed by myself only)"
+date: "09/04/2018"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(message=F,warning=F,echo=T,fig_height=10,fig_width=7,cache = F)
+```
+
+
+Answer all questions specified on the problem and include a discussion on how your results answered/addressed the question.
+
+Submit your \textbf{.rmd} file with the knitted \textbf{PDF} (or knitted Word Document saved as a PDF). If you are having trouble with .rmd, let us know and we will help you, but both the .rmd and the PDF are required.
+
+This file can be used as a skeleton document for your code/write up. Please follow the instructions found under Content for Formatting and Guidelines. No code should be in your PDF write-up unless stated otherwise.
+
+For any question asking for plots/graphs, please do as the question asks as well as do the same but using the respective commands in the GGPLOT2 library. (So if the question asks for one plot, your results should have two plots. One produced using the given R-function and one produced from the GGPLOT2 equivalent). This doesn't apply to questions that don't specifically ask for a plot, however I still would encourage you to produce both.
+
+You do not need to include the above statements.
+
+Please do the following problems from the text book R Handbook and stated.
+
+##Problem 1. 
+Collett (2003) argues that two outliers need to be removed from the \textbf{plasma} data. Try to identify those two unusual observations by means of a scatterplot. (7.2 on Handbook)
+
+
+
+```{r echo=TRUE}
+#install.packages('knitr')
+#Loading the libraries and datasets
+#install.packages('HSAUR3')
+#install.packages('tidyverse')
+#install.packages('dplyr')
+library(dplyr)
+library(tidyverse)
+library(HSAUR3)
+data(plasma)
+attach(plasma)
+#Creating scatterplots to determine the relationship in order to spot possible outliers in the data set
+ESR_less <- subset(plasma, ESR=='ESR < 20')
+ESR_greater <-subset(plasma, ESR=='ESR > 20')
+ESR_less_lm <- lm(ESR_less$globulin ~ ESR_less$fibrinogen, data=ESR_less)
+ESR_greater_lm <- lm(ESR_greater$globulin ~ ESR_greater$fibrinogen, data=ESR_greater)
+
+
+#Using base R for plotting a scatter plot
+plot(plasma$globulin ~ plasma$fibrinogen, col=plasma$ESR, xlab="Fibrinogen",ylab="Globulin",main="Plasma Data Set of Fibrinogen Vs. Globulin Scatterplot")
+legend(4.5,46.3,pch=c(1,1), col=c("red","black"),c("ESR>20", "ESR<20"), box.col="black",cex=1.0)
+abline(ESR_greater_lm, col="red")
+abline(ESR_less_lm, col="black")
+
+#Using GGplot for plotting scatter plot
+ggplot(data=plasma, aes(x=fibrinogen, y=globulin, color=ESR)) + geom_point() + geom_smooth(method="lm") +
+labs(title="Plasma Data Set of Fibrinogen vs Globulin Scatterplot",
+     x="Figrinogen",
+     y="Globulin")
+
+```
+
+##My Response: 
+Looking at the scatterplots above it appears that when the ESR > 20 there  is an observation where Figrinogen in almost 4 and also an observation where Figrinogen is just above 5.  I believe these two observations are outliers. Because as Figrinogen increases, Globin does not increase. 
+
+
+
+##Problem 2. 
+(Multiple Regression) Continuing from the lecture on the \textbf{hubble} data from \textbf{gamair} library;
+
+    a) Fit a quadratic regression model, i.e.,a model of the form
+$$\text{Model 2:   } velocity = \beta_1 \times distance + \beta_2 \times distance^2 +\epsilon$$
+```{r echo=TRUE}
+#Loading the libraries and data set for hubble
+library(gamair)
+data(hubble)
+attach(hubble)
+
+
+distance <- hubble[,3]
+velocity <- hubble[,2]
+
+hubble2 <- data.frame(
+  velocity,
+  distance
+)
+#fitting a quadratic model with distance and distance^2 for explainning velocity using a linear regression model  
+
+p2_model <- lm(velocity ~ poly(distance,2), data=hubble2)
+
+```
+
+
+    b) Plot the fitted curve from Model 2 on the scatterplot of the data
+    
+    
+```{r echo=TRUE}
+
+#creating scatterplots of the data with distance and distance^2 explainning velocity
+#also plotting predicted model's line on the scatterplot
+
+#Creating sequence to plot the model of the line on the scatterplot
+linex <- data.frame(distance = seq(min(hubble2$distance, na.rm=TRUE), max(hubble2$distance, na.rm=TRUE), by = 0.01))
+
+liney <- predict(p2_model, linex)
+
+plot(velocity~distance, data=hubble2, xlab="Distance",ylab="Velocity",main="Scatterplot of Hubble Data Set Velocity Vs. Distance")
+lines(x=linex$distance,y=liney, type="l")
+legend(1.5,1800,legend=c("Quadratic Function Prediction"),col=c("black"), lty=1:1,cex=0.8)
+
+
+ggplot(data=hubble2, aes(x=distance, y=velocity)) + geom_point() +
+geom_line(data=linex, aes(x=linex$distance, y=liney, color='Quadratic'),lwd=0.5) +
+labs(title="Scatterplot of Hubble Data Set Velocity Vs. Distance",
+     x="Distance",
+     y='Velocity')
+  scale_color_manual(name="Model",
+    values=c(Quadratic="black"))
+
+
+```
+    
+    c) Add the simple linear regression fit (fitted in class) on this plot - use different color and line type to differentiate the two and add a legend to your plot. 
+
+
+```{r echo=TRUE}
+#Creatining scatterplots of the relationship between velocity and distance
+#creating each model's line on the scatterplots
+p1_model <- lm(velocity ~ distance-1, data=hubble2)
+plot(velocity~distance, data=hubble2, xlab="Distance",ylab="Velocity", main="Scatterplot of Hubble Data Set Velocity Vs. Distance")
+lines(x=linex$distance,y=liney, type="l")
+abline(p1_model, col="red")
+legend(1.5,1800,legend=c("Quadratic Function Prediction","Simple Linear Function Prediction"),col=c("black","red"), lty=1:1,cex=0.8)
+
+ggplot(data=hubble2, aes(x=distance, y=velocity, color='Simple')) + geom_point() +
+  geom_smooth(method='lm') +
+geom_line(data=linex, aes(x=linex$distance, y=liney, color='Quadratic'),lwd=0.5) +
+labs(title="Scatterplot of Hubble Data Set Velocity Vs. Distance",
+     x="Distance",
+     y='Velocity') +
+  scale_color_manual(name="Model Type",
+    values=c(Quadratic="blue", Simple="black"))
+
+```
+    
+    d) Which model do you consider most sensible considering the nature of the data - looking at the plot? 
+##My Response: 
+Given the small data set I would say by looking at the plots that the simple linear regression model fits the best for generalizing the data. We always have to remember that we are trying to come up with a model that generalized well. So the model can fit when new data comes in. I think the quadratic function tends to not generalize well. I worry that when new data comes in it might not fit as well as the simple linear model
+
+    
+    e) Which model is better? - provide a statistic to support you claim.
+
+
+```{r echo=TRUE}
+
+summary(p1_model)
+summary(p2_model)
+
+```
+
+##My Response: 
+Looking at the statistics above it appears that the simple linear model is a better fit than the quadratic model. For example, the p value in the linear is smaller (1.032e-15) than the quadratic formula (2.476e-07). The Rsquared  value is higher in the simple linear (0.9419) than the quadratic model (0.7651). The standard error it much lower in the simple linear mode (3.965) than the quadratic model (260.09)
+
+    Note: The quadratic model here is still regarded as a ``linear regression" model since the term ``linear" relates to the parameters of the model and not to the powers of the explanatory variables. 
+
+##Problem 3. 
+
+The \textbf{leuk} data from package \textbf{MASS} shows the survival times from diagnosis of patients suffering from leukemia and the values of two explanatory variables, the white blood cell count (wbc) and the presence or absence of a morphological characteristic of the white blood cells (ag). 
+
+##My Assumption: 
+I would assume that the presence of the morphological chracteristics would contribute to the the patients living less than 24 weeks. And also that the absence of the morphological characteristic that the patients would be more likely to live to at least 24 weeks. 
+
+    a) Define a binary outcome variable according to whether or not patients lived for at least 24 weeks after diagnosis. Call it \textit{surv24}. 
+
+```{r echo=TRUE}
+
+#Creating a data frame with an additional column based on a binary outcome of greater than or equal 24 and less than 24. If greater than or equal to 24 then 1 otherwise 0
+#install.packages('MASS')
+library(MASS)
+data(leuk)
+
+leuk.dat <- data.frame (
+  wbc = leuk$wbc,
+  ag = leuk$ag,
+  time = leuk$time,
+  surv24 = ifelse(leuk$time>= 24, 1,0)
+)
+
+```
+    
+    b) Fit a logistic regression model to the data with \textit{surv24} as response. It is advisable to transform the very large white blood counts to avoid regression coefficients very close to 0 (and odds ratio close to 1). You may use log transformation.
+
+```{r echo=TRUE}
+
+#Creating a dataframe with additional variable which is the log of wbc found in leuk data set
+
+leuk_dat_trans <- data.frame (
+  cbind(leuk.dat,
+  log_wbc = log(leuk$wbc))
+)
+
+
+
+#Fitting a logistic regression model to the data looking at surv24 and repsonse of ag and the log of wbc using the binomial family
+leuk_log_model1 <- glm(surv24 ~ ag + log_wbc, family='binomial', data=leuk_dat_trans)
+
+
+```
+    
+    c) Construct some graphics useful in the interpretation of the final model you fit. 
+
+```{r echo=TRUE}
+
+leuk_log_fit <- predict(leuk_log_model1, type='response')
+leuk_dat_trans <- data.frame (
+  cbind(leuk_dat_trans, 
+        leuk_log_fit)
+)
+
+leuk_present <- subset(leuk_dat_trans[leuk_dat_trans$ag=='present',])
+leuk_absent <- subset(leuk_dat_trans[leuk_dat_trans$ag=='absent',])
+
+
+#scatterplot of probability of death vs white blood cell count. The logistic model will also be plotted to see how it is modelling the data.
+ggplot(data=leuk_dat_trans, aes(x=wbc, surv24, col=ag)) + geom_point() +
+  scale_color_manual(name = "Diagnosis", values=c("purple","black")) +
+  geom_line(data=leuk_absent, aes(x=wbc, y=leuk_log_fit), color="purple" ,lwd=0.5) +
+  geom_line(data=leuk_present, aes(x=wbc, y=leuk_log_fit), color='black', lwd=0.5) + 
+labs(title="Leukaemia Patients and Survival Times based on White Blood Cells",
+     y="Probility of Death within 24 Weeks",
+     x='White Blood Cell Count')
+
+
+#Blox plots of probability of death and the diagnosis of absent vs present. Both in GGplot and base-R
+plot(surv24 ~ ag, data=leuk_dat_trans, ylab="Probability of Death", xlab="Diagnosis Result of White Blood cell Morphological Characteristic",main="Boxplot of Leukaemia Patient Data of Diagnosis Results within 24 weeks")
+ggplot(leuk_dat_trans, aes(x=ag, y=surv24)) + geom_boxplot() +
+  labs(title="Boxplot of Leukaemia Patient Data of Diagnosis Results within 24 weeks",
+       x="Diagnosis Result of White Blood cell Morphological Characteristic",
+       y="Proability of Death")
+
+
+
+```
+    
+    d) Fit a model with an interaction term between the two predictors. Which model fits the data better? Justify your answer.
+
+```{r echo=TRUE}
+leuk_log_model2 <- glm(surv24 ~ ag + log_wbc + ag*log_wbc, family='binomial', data=leuk_dat_trans)
+
+print("Model 1 (simpler) model summary:")
+summary(leuk_log_model1)
+
+
+
+```
+```{r echo=TRUE}
+print("Model 2 (complex) model with variable interactions:")
+summary(leuk_log_model2)
+```
+
+##My Response: 
+I believe the simpler model (the first one) fits the data better than the second one (complex model) containing interactions.  The p-values tend to be lower (meaning the explanatory variables have a higher significance on the desired outcome) and the standard error values for each variable tend to be lower.  I believe the first one generalizes to the data better.
+
+However, the second does have a lower residual deviance and lower AIC score. 
+
+
+##Problem 4. 
+
+Load the \textbf{Default} dataset from \textbf{ISLR} library. The dataset contains information on ten thousand customers. The aim here is to predict which customers will default on their credit card debt. It is a four-dimensional dataset with 10000 observations. The question of interest is to predict individuals who will default . We want to examine how each predictor variable is related to the response (default). Do the following on this dataset 
+
+##My Assumption: 
+I would suspect that students are more likely to default than non-students. I would also assume that people who carry a higher balance would be more likely to default. I do not think income would play as much of an issue. 
+
+    a) Perform descriptive analysis on the dataset to have an insight. Use summaries and appropriate exploratory graphics to answer the question of interest.
+
+```{r echo=TRUE}
+
+#install.packages('ISLR')
+library(ISLR)
+data(Default)
+
+no_default <- subset(Default[Default$default=='No',])
+yes_default <- subset(Default[Default$default=="Yes",])
+
+#Overall summary of dataset
+summary(Default)
+
+#Summary statistics for when default is no
+summary(no_default)
+
+#Summary statistics for when default is yes
+summary(yes_default)
+
+#Bloxplot for default category based on balance
+ggplot(data=Default, aes(x=default, y=balance, fill=student)) + 
+  geom_boxplot() + 
+    facet_grid(student~.) +
+  coord_flip() + 
+  labs(title="Boxplot by Default (Yes vs No) based on Balance by Student (Yes vs No)",
+       x="Default (Yes, No)",
+       y="Balance") +
+ scale_fill_brewer(palette="Dark2")
+
+
+#Bloxplot for default category based on income
+ggplot(data=Default, aes(x=default, y=income, fill=student)) + 
+  geom_boxplot() + 
+  facet_grid(student~.) +
+  coord_flip() + 
+  labs(title="Boxplot by Default (Yes vs No) based on Income by Student (Yes vs No)",
+       x="Default (Yes, No)",
+       y="Income") +
+  scale_fill_brewer(palette="Dark2")
+
+
+#Subsetting the data by students and non-students
+no_student <- subset(Default[Default$student=='No',])
+yes_student <- subset(Default[Default$student=="Yes",])
+
+#Scatterplot to see if there is a correlation between income & balance for defaulting for non-students
+ggplot(data=no_student, aes(x=balance, y=income, col=default)) + 
+  geom_point() +
+  labs(title = "Scatterplot of Balance vs Income by Default for Non-Students" , x="Balance", y="Income")
+
+#Scatterplot to see if there is a correlation between income & balance for defaulting for students
+ggplot(data=yes_student, aes(x=balance, y=income, col=default)) + 
+  geom_point() +
+  labs(title = "Scatterplot of Balance vs Income by Default for Students" , x="Balance", y="Income")
+
+```
+
+##My Response: 
+Looking at the boxplots students income appear to be lower than non-students. However, the income between defaulting or not defaulting seems to be a similar distribution between each student status. 
+
+The Balance vs Default boxplot reveals some useful information.  It appears the higher the balance the more likely hood of defaulting for both students and non-students.
+
+The scatterplots between both students and non-students do not generally show a linear relationship between balance and income or defaulting or not.  
+    
+    b) Use R to build a logistic regression model. 
+
+```{r echo=TRUE}
+
+#basic model without any variables being multipled together
+basic_model <- glm(default ~ student + balance + income, family='binomial', data=Default)
+
+
+#complex model with all the variables by themselves and then multiplying them together to see if there is any interaction significance 
+complex_model <- glm(default ~ student + balance + income + student*balance + student*income + balance*income, family='binomial', data=Default)
+```
+    
+    c) Discuss your result. Which predictor variables were important? Are there interactions?
+
+
+```{r echo=TRUE}
+summary(basic_model)
+```
+```{r echo=TRUE}
+summary(complex_model)
+```
+
+##My Response: 
+I believe the first model (simpler) is better than the second one (complex) that contains interactions of variables. In the first model (simpler) balance plays a more significant role in explaining the default variable. Student staus also seems to play somewhat of a role.  
+
+In the second model (complex) balance is still significant but not as much as the first model (simpler).  Student status in the second model does not have any significance. The AIC is a little lower in the first model (simpler). In addition, the standard errors are lower for the variables of interest in the first model (simpler) compared to the second model (complex). 
+    
+    d) How good is your model? Assess the performance of the logistic regression classifier. What is the error rate? 
+    
+```{r echo=TRUE}
+
+#Converting default vector to a binary 0 or 1 for constructing confusion matrix 
+Tr <- ifelse(Default$default == "Yes",1,0)
+
+#Building confusion matrix calculate model error of basic model 
+
+basic_model_fit <- predict(basic_model, type="response")
+
+basic_model_pred <- factor(ifelse(basic_model_fit >= 0.50, "Yes","No"))
+basic_model_true <- factor(ifelse(Tr >= .5, "Yes","No"))
+basic_model_confusion_matrix <- table(basic_model_pred, True=basic_model_true)
+basic_model_error_rate <- (basic_model_confusion_matrix[1,2]+basic_model_confusion_matrix[2,1])/sum(basic_model_confusion_matrix)
+print("Basic Model Confusion Matrix:")
+basic_model_confusion_matrix
+cat("Basic Model Error Rate",basic_model_error_rate)
+cat(" Therefore the accuracy of the model is:", 100 - basic_model_error_rate*100)
+
+
+
+
+
+
+#Building confusion matrix calculate model error of complex model 
+complex_model_fit <- predict(complex_model, type ="response")
+
+complex_model_pred <- factor(ifelse(complex_model_fit > 0.50, "Yes","No"))
+complex_model_true <- factor(ifelse(Tr >= .5, "Yes","No"))
+complex_model_confusion_matrix <- table(complex_model_pred, True=complex_model_true)
+complex_model_error_rate <- (complex_model_confusion_matrix[1,2]+complex_model_confusion_matrix[2,1])/sum(complex_model_confusion_matrix)
+print("Complex Model Confusion Matrix:")
+complex_model_confusion_matrix
+cat("Complex Model Error Rate", complex_model_error_rate)
+cat(" Therefore the accuracy of the model is:", 100 - complex_model_error_rate*100)
+          
+```  
+##My Response: 
+Both models have low error rate at roughly 2.69% and 2.68%.  Therefore, the accuracy rating on both of these models is 97.31% and 97.32%. Thus, both models are accurate in predicting the outcome of defaulting. Since the models are very close in accuracy I would be more inclined to use the first model. The simpler the model the more generalized it is. Therefore, I believe the simple model would be a better pick and prevent overfitting the data. 
+    
+
+##Problem 5.
+Go through Section 7.3.1 of the Handbook. Run all the codes (additional exploration of data is allowed) and write your own version of explanation and interpretation.
+
+```{r echo=TRUE}
+library(HSAUR3)
+data(plasma)
+layout(matrix(1:2, ncol=2))
+cdplot(ESR ~ fibrinogen, data=plasma)
+cdplot(ESR ~ globulin, data=plasma)
+```
+
+##My Response: 
+These two density plots describe how the categorical variable ESR (less than 20 or greater than 2) change as the continuous variables fibrinogen and globulin change. 
+
+
+
+```{r echo=TRUE}
+plasma_glm_1 <- glm(ESR ~ fibrinogen, data=plasma, family=binomial())
+confint(plasma_glm_1, parm="fibrinogen")
+```
+
+
+
+```{r echo=TRUE}
+summary(plasma_glm_1)
+```
+
+##My Response: 
+The function above produces a logisitic regression model for using figrinogen as the explanatory variable for predicting ESR. The family portion in this model assumes a binomial logistic regression model. The confidence interval is also displayed. 
+
+The summary function provides a description of the fitted model. There appears to be a significance between fibrinogen explaining the ESR level. In other worse, fibrinogen is significant at the 0.05 level. The null divances is also close the degress of freedom. 
+
+
+
+
+```{r echo=TRUE}
+exp(coef(plasma_glm_1)["fibrinogen"])
+exp(confint(plasma_glm_1, parm='fibrinogen'))
+```
+
+##My Response: 
+Using the exp function it outputs the odds due tothe log of fibrinogen.  The confidence interval with the corresponding values. 
+
+Due to the sample size be rather the small there is a wide range for the confidence interval. But based on these values it seems to indicate that as fibrinogen increases the liklihood of a ESR. 
+
+
+##Logistic Model with Both Fibriongen and globulin explainning ESR
+```{r echo=TRUE}
+plasma_glm_2 <-glm(ESR ~ fibrinogen + globulin, data= plasma, family=binomial())
+
+summary(plasma_glm_2)
+```
+##My Response: 
+Looking at the summary of the logistic model with both globulin and fibrinogen it appears that globulin is significant at the 0.05 level for explaining ESR level. Therefore, it will be used in model selection. To compare models in R we can use a function call anova.
+
+
+```{r echo=TRUE}
+anova(plasma_glm_1, plasma_glm_2, test="Chisq")
+```
+
+
+##Bubble Plot
+##My Response: 
+For illustrative purposes a bubble plot will be used for the second fitted model containing both globulin and fibriongen
+
+```{r echo=TRUE}
+prob <- predict(plasma_glm_2, type='response')
+plot(globulin ~ fibrinogen, data=plasma, xlim=c(2,6), ylim=c(25,55), pch='.')
+symbols(plasma$fibrinogen, plasma$globulin, circles= prob, add=TRUE)
+```
+##My Response: 
+The larger the bubbles the the larger the probability of higher ESR (greater than 20). Therefore, as fibrinogen increases so does the probability of ESR (greater than 20). Globulin seems to have a lesser degrees of probability of higher ESR values. 

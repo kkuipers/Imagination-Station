@@ -1,0 +1,525 @@
+---
+title: "Homework 9"
+author: "STAT 601"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=F,warning=F,echo=T,fig_height=10,fig_width=7,cache = F)
+```
+
+##Kevin Kuipers (Completed Byself)
+##October 23, 2018
+
+
+
+##Problem 1 A)
+
+1. Following up with the Beat the Blues data from the video (package HSAUR3) do the following
+
+      a. Construct boxplots to compare the factor variable \textbf{drug} 
+      in an analogous way to how we constructed boxplots in the video for the 
+      treatment variable. Discuss the results. 
+
+First I will load the needed libraries. Then I will load the Beat the Blues Data set and explore it by using the ? command() to understand what the variables represent. After that I will create boxplots for the treatment variable, drug, found in the Beat The Blues Data set. I will also run the piece of code from the lecture to fix a bug in the lme4 library. The drug variable has two categories.  Yes, indicates the patient is taking anti-depressants and No means that the pateitn is did not take anti-depressants.
+
+
+```{r echo=TRUE}
+
+set.seed(12341892)
+#Loading Libraries
+library("HSAUR3")
+library("gee")
+library("lme4")
+library("Matrix")
+library("multcomp")
+library('tidyverse')
+
+
+### fix bug in lme4 0.9975-1 (for the time being)
+residuals <- function(object, obs) obs-predict(object) 
+
+#Loading beat the blues dataset
+data(BtheB)
+
+#Exploring drug data set
+?BtheB
+
+#Creating the boxplots
+#Retyping much of the code from the lecture but modifying it to have two groups. One for "No" for No drugs and "Yes" for taking drugs
+
+#most of the code structure was found in Cahpter_13 code.R file & the lecture. some modifications were made to get the desired variables for analysis
+layout(matrix(1:2, nrow=1))
+ylim <- range(BtheB[,grep('bdi', names(BtheB))],
+              na.rm=TRUE)
+No <- subset(BtheB, drug == 'No')[, grep('bdi', names(BtheB))]
+boxplot(No, main='No Anti-Depressants', ylab='BDI', xlab='Time (Months)', names=c(0,2,3,5,8), ylim=ylim)
+
+Yes <- subset(BtheB, drug == 'Yes')[,grep('bdi', names(BtheB))]
+boxplot(Yes, main='Taking Anti-Depressants', ylab="BDI", xlab="Time", names=c(0,2,3,5,8), ylim=ylim)
+
+
+
+#In order to easily plot using the ggplot command I will convert the data set to long format
+BtheB$subject <- factor(rownames(BtheB))
+nobs<- nrow(BtheB)
+bthb_long <- reshape(BtheB, idvar = 'subject',
+                     varying=c('bdi.pre','bdi.2m','bdi.3m','bdi.5m','bdi.8m'),
+                     direction = 'long')
+bthb_long$time <- rep(c('0','2',3,5,8), rep(nobs,5))
+
+anti_depressants <- c('No' = 'No Anti-Depressants', 'Yes' = 'Taking Anti-Depressants')
+#ggplot can now easily divide the categorical variable (drug) into its groups Yes and No
+ggplot(bthb_long, aes(time, bdi)) + geom_boxplot() + facet_grid(~drug, labeller = as_labeller((anti_depressants))) + labs(title='Boxplots of DBI & Time by Anti-Depressant Status', x='Time (Months)', y='DBI')
+
+
+``` 
+
+##Problem 1 B)
+
+      b. Repeat (a) for the \textbf{length} variable. Discuss the results.
+
+Following the same pattern as for part a but applying it the length variable.  The length variable measures the length of the current episode of depression by two factors. One (<6m) indicates that it is less than 6 months.  The other, (>6m) indicates that it is more than 6 months. 
+
+
+```{r echo=TRUE}
+#box plots of BDI vs Time for length of current episode
+#most of the code structure was found in Cahpter_13 code.R file & the lecture. some modifications were made to get the desired variables for analysis
+layout(matrix(1:2, nrow=1))
+less <- subset(BtheB, length == '<6m')[,grep('bdi', names(BtheB))]
+boxplot(less, main='Less than 6 Months', ylab="BDI", xlab="Time", names=c(0,2,3,5,8), ylim=ylim)
+greater <- subset(BtheB, length == '>6m')[, grep('bdi', names(BtheB))]
+boxplot(greater, main='More than 6 Months', ylab='BDI', xlab='Time (Months)', names=c(0,2,3,5,8), ylim=ylim)
+
+
+
+
+#ggplot can now easily divide the categorical variable (length) into its groups <6m & >6m
+
+timelabels <-c('<6m'='Less Than 6 months', '>6m'='Greater Than 6 Months')
+ggplot(bthb_long, aes(time, bdi)) + geom_boxplot() + facet_grid(~length, labeller = as_labeller((timelabels))) + labs(title='DBI over Time for current Episode of Depression ', x='Time (Months)', y='DBI')
+
+
+``` 
+
+
+##Problem 1 C)
+
+      c. Use the \textit{lm} function to fit a model to the Beat the Blues data 
+      that assumes that the repeated measurements are independent. 
+      Compare the results to those from fitting the random intercept model 
+      \textit{BtheB\_lmer1} from the video.
+
+
+#Converting to long format
+
+I will have to convert the data set to the long format in order to fit both the linear regression model and the lmer model.  
+
+```{r echo=TRUE}
+
+
+#converting the data from wide formate to long format
+BtheB$subject <- factor(rownames(BtheB))
+nobs2 <- nrow(BtheB)
+btheb_long2 <- reshape(BtheB, idvar = 'subject',
+                       varying = c('bdi.2m','bdi.3m','bdi.5m','bdi.8m'),
+                       direction = 'long')
+btheb_long2$time <- as.numeric(rep(c(2,3,5,8), rep(nobs2, 4)))
+
+#Fitting a fixed model 
+btheb_lm1 <- lm(bdi ~ bdi.pre + time + drug + length + treatment + subject, data=btheb_long2, na.action = na.omit)
+
+#Fitting a mixed model
+btheb_lmer1 <- lmer(bdi ~ bdi.pre + time + drug + length + treatment + (1 | subject), data=btheb_long2, REML=FALSE, na.action=na.omit)
+
+
+``` 
+
+
+#Model Summaries
+
+I will display the summaries of the models by using the anova command for comparing the mixed effects model to the fixed effect linear model. This way I can quickly see how the models are performing. 
+
+```{r echo=TRUE}
+
+anova(btheb_lmer1, btheb_lm1)
+
+
+``` 
+
+#Residual vs Fitted and Normal Q-Q plot of Fixed Model
+
+
+
+```{r, fig.width=9, fig.height=6}
+layout(matrix(1:2, ncol=2))
+plot(btheb_lm1, which=1)
+plot(btheb_lm1, which=2)
+
+``` 
+
+
+#Residual and QQnorm plots of the Mixed Effects Model
+
+```{r, fig.width=9, fig.height=6}
+plot(btheb_lmer1, main='Residuals vs Fitted',xlab='Fitted values',ylab='Residuals')
+
+
+#most of the code structure was found in Cahpter_13 code.R file & the lecture. some modifications were made to get the desired variables for analysis
+residuals <- function(object, obs) obs-predict(object) 
+layout(matrix(1:2, ncol = 2))
+qint <- ranef(btheb_lmer1)$subject[["(Intercept)"]]
+qres <- residuals(btheb_lmer1, btheb_long2$bdi.pre)
+qqnorm(qint, ylab = "Estimated random intercepts",
+xlim = c(-3, 3), ylim = c(-20, 20),
+main = "Random intercepts")
+qqline(qint, col="orange", lwd=2)
+qqnorm(qres, xlim = c(-3, 3), ylim = c(-20, 20),
+ylab = "Estimated residuals",
+main = "Residuals")
+qqline(qres, col="green", lwd=2)
+
+``` 
+
+#Summary of Fixed Model
+
+```{r echo=TRUE}
+
+anova(btheb_lm1)
+
+``` 
+
+#Summary of Mixed Model
+
+```{r echo=TRUE}
+
+cftest(btheb_lmer1)
+
+
+``` 
+
+It appears from the anova test of the models that the fixed model (lm command) tends to have lower AIC score, higher BIC and lower deviance. Even looking at the model summaries it appears the fixed model has more variables that are significant when looking at the p-values for the covariates. Therefore, it seems the fixed model has a better overall fit than the mixed model. 
+
+## Problem 1 D)
+
+      d. Investigate and discuss whether there is any evidence of 
+      an interaction between treatment and time for the Beat the Blues data.
+
+
+#Boxplots of Treatment Groups
+
+I will subset the the data into two groups in order to contruct boxplots for each time interval for each group. The first subset will be treatment as usual group and the second will be Beat the Blues group. The boxplots will be the BDI values for each time interval. This will first be done using the plot command.  After that I will produce the same boxplots using the ggplot() command. 
+
+```{r echo=TRUE}
+
+#most of the code structure was found in Cahpter_13 code.R file & the lecture. Just retyped out for me to understand the logic of it. 
+
+layout(matrix(1:2, nrow=1))
+ylim <- range(BtheB[,grep('bdi', names(BtheB))],
+              na.rm=TRUE)
+
+
+#subsetting the data for treatment as usual group
+tau <- subset(BtheB, treatment=='TAU')[,grep('bdi', names(BtheB))]
+#developing box plots for each time interval for the treatment as usual group based on BDI values
+boxplot(tau, main='Treatment As Usual',xlab='Time (Months)', ylab='BDI', ylim=ylim, 
+names=c(0,2,3,5,8))
+
+#subseting the data for BtheB group
+btb <- subset(BtheB, treatment=='BtheB')[,grep('bdi', names(BtheB))]
+#developing box plots for each time interval for the treatment as usual group based on BDI values
+boxplot(btb, main='Beat The Blues', xlab='Time (Months)', ylab='BDI', ylim=ylim, names=c(0,2,3,5,8))
+
+
+
+#ggplot can now easily divide the categorical variable (treatment) into its groups TAU vs BtheB
+
+treatmentlabels <-c('TAU'='Treatment As Usuaul', 'BtheB'='Beat The Blues')
+
+ggplot(bthb_long, aes(time,bdi)) + geom_boxplot() + facet_grid(~treatment, labeller = as_labeller(treatmentlabels)) + labs(title='DBI vs Time For Each Treatment Group', x='Time (Months)',y='BDI')
+
+
+``` 
+
+Looking at the boxplots it appears that as time goes on the BDI values tend to be lower. It looks like the TAU has a wider disperson of data than the BtheB group. 
+
+
+#Fitting models for treatment and time interaction
+
+Now I will fit both a fixed and mixed model using all the same covariates in the previous models but adding treatment and time interaction.
+
+```{r echo=TRUE}
+
+#Fitting linear model
+btheb_lm2 <- lm(bdi ~ bdi.pre + time + drug + length + treatment + subject + treatment*time, data= btheb_long2)
+
+#Fitting mixed Model
+btheb_lmer2 <- lmer(bdi ~ bdi.pre + time + drug + length + treatment + treatment*time + (1 | subject), data=btheb_long2, REML=FALSE, na.action=na.omit)
+
+
+
+``` 
+
+
+#Model Summaries using anova command. 
+
+```{r echo=TRUE}
+
+anova(btheb_lmer2, btheb_lm2)
+
+``` 
+
+#Fixed Model summary
+
+```{r echo=TRUE}
+
+anova(btheb_lm2)
+
+``` 
+
+#Mixed Model summary
+
+```{r echo=TRUE}
+
+cftest(btheb_lmer2)
+
+``` 
+
+
+Looking at the model sumamries it appears that treatment and time interaction is significant in both models. However, the interaction is more significant in the fixed model than the mixed model. For the fixed model it is  0.031867 and the mixed model is 0.09064. Which is a pretty notable difference.
+
+
+
+
+##Problem 1 E)
+
+      e. Construct a plot of the mean profiles of both treatment groups 
+      in the Beat the Blues data, showing also standard deviation 
+      bars at each time point. 
+      (Attempt to use \textbf{ggplot2} library  to do this).
+
+
+```{r echo=TRUE}
+
+
+ggplot(bthb_long, aes(time, bdi)) + stat_boxplot(geom='errorbar', linetype=1, width=0.5) + geom_boxplot( aes(time, bdi),outlier.shape=1) + facet_grid(~treatment, labeller = as_labeller(treatmentlabels)) +  stat_summary(fun.y=mean, geom='point', size=2) + stat_summary(fun.data=mean_se, geom='errorbar') + labs(title='DBI vs Time For Each Treatment Group With Error bars', x='Time (Months)',y='BDI')
+
+``` 
+
+
+
+##Problem 2  
+  
+2. Consider the \textbf{phosphate} data from the package HSAUR3. This data shows the plasma inorganic phosphate levels for 33 subjects, 20 of whom are controls and 13 of whom have been classified as obese (Davis, 2002). Perform the following on this dataset
+
+##Problem 2 A) 
+ 
+      a. Construct boxplots by group and discuss. 
+
+I will load the data set and explore it using ?phosphate command. After that I will construct boxplots by group for each phosphate level for a given time interval. This will done using very similar coding as found in Problem 1A) I will have to subset the data by each group for the plot command. For ggplot I will have to convert the data to long format.  
+
+
+```{r, fig.width=9, fig.height=6}
+data(phosphate)
+pho <- phosphate
+
+#understanding the variables with within the data set
+#?phosphate
+
+
+#Using the plot() command to creat boxplots for each group (control & obese) of the phosphate levels given at each time interval
+
+layout(matrix(1:2, nrow=1))
+ylim2 <- range(pho[,grep('t', names(pho))],
+              na.rm=TRUE)
+control <- subset(pho, group=='control')[,grep('t',names(pho))]
+boxplot(control, main='Control Group',xlab='Time (Hours)', ylab='Phosphate Level', names=c(0, 0.5, 1, 1.5, 2, 3, 4, 5), ylim=ylim2)
+
+obese <- subset(pho, group=='obese')[,grep('t', names(pho))]
+boxplot(obese, main='Obese Group', xlab='Time (Hours)', ylab='Phosphate Level', names=c(0, 0.5, 1, 1.5, 2, 3, 4, 5), ylim=ylim2)
+
+
+#converting the data from wide format to long format
+library(reshape2)
+
+#Creating a factor for each observation kind of like an ID
+pho$id <- factor(rownames(pho))
+
+#converting wide to long
+pho_long <- melt(pho, id.vars = c('id','group'))
+names(pho_long) <- c('observation','group','time','level')
+
+#ggplot boxplots
+ggplot(pho_long, aes(time, level)) + geom_boxplot() + facet_grid(~group) + labs(title='Phosphate Levels at a Given time Per Group',x='Time (Hours)',y='Phosphate Level') + scale_x_discrete(labels=c(0, 0.5, 1, 1.5, 2, 3, 4, 5))
+
+
+
+``` 
+
+##Problem 2 B)
+   
+      b. Produce separate plots of the profiles of the individuals in each group.
+ 
+ 
+```{r, fig.width=11, fig.height=8}
+
+ggplot(pho_long, aes(x=time,y=level, group=observation)) + geom_line(aes(color=observation), size=0.8) + facet_grid(~group) + scale_x_discrete(labels=c(0, 0.5, 1, 1.5, 2, 3, 4, 5)) + labs(title='Phosphate Levels Over Time Per Observation', x='Time (Hours)',y='Phosphate Levels')
+
+pho_long_obese <- subset(pho_long,group=='obese')
+pho_long_control <- subset(pho_long,group=='control')
+
+
+library(lattice)
+p1 <- xyplot(level~time,
+       type='b',
+       group=observation,
+       data=pho_long_control,
+       main = 'Control Group',
+       xlab = 'Time (Hours)',
+       ylab = 'Phospahte Levels'
+)
+p2 <- xyplot(level~time,
+       type='b',
+       group=observation,
+       data=pho_long_obese,
+        main = 'Obese Group',
+       xlab = 'Time (Hours)',
+       ylab = 'Phospahte Levels',
+       auto.key = list(
+         points = FALSE,
+         columns=1,
+         lines=TRUE,
+         space='right'
+       ))
+library(gridExtra)
+grid.arrange(p1,p2,ncol=2)
+
+```  
+
+
+
+##Problem 2 C) 
+   
+   
+   
+      c. Guided by how these plots fit, which linear mixed effects models do you 
+      think might be sensible? 
+      (Hint: Discuss intercept and slope, intercept and interaction).
+
+
+
+
+#Discussion:
+
+For most of the observations it looks like the phosphate levels display an upside down parabola over time. Initially the levels start off high and decrease until 1.5 hours and then rise again--forming the updside down parabola. However, the individual observations do all display differing consistencies of the upside down parabola and different intercepts but I would speculate a mixed model would be best to make up this interaction. I would suggest something like Phosphate Level is explained by t0 + (-time^2)*group. In this case t0 would be the intercept (initial level) and then -(time)^2&group + (1|subject) would be the interaction. 
+  
+
+
+##Problem 2 D)
+  
+    
+      d. Convert the data to long version and fit 
+      the model of your choice and discuss the results. 
+
+
+#Developing the model 
+
+I will test 4 different kinds of models and run the anova command on all four to see which model seems the best. 
+
+
+```{r echo=TRUE}
+
+pho_long2 <- melt(pho, id.vars = c('id', 'group','t0'))
+names(pho_long2) <- c('observation','group','initial','time','level')
+
+pho_lm <- lm(level ~ initial + (-(time^2)*group), data=pho_long2, na.action=na.omit)
+
+pho_lmer <- lmer(level ~ initial + (-(time^2)*group) + (1 | observation), data=pho_long2, REML=FALSE, na.action=na.omit)
+
+pho_lm2 <- lm(level ~ initial + time*group, data=pho_long2, na.action=na.omit)
+
+pho_lmer2 <- lmer(level ~ initial + time*group + (1 | observation), data=pho_long2, REML=FALSE, na.action=na.omit)
+
+anova(pho_lmer, pho_lm, pho_lm2, pho_lmer2)
+
+
+``` 
+
+
+
+#Discussion
+
+
+The last two models seem to produce the best results. The pho_lmer2 (mixed) model has the lowest AIC, BIC, and logLik, and deviance values. The pho_lm2 (fixed) model seems to be more significant with a 6.657e-13 value but due to the lower values in the pho_lmer2 I believe would be a better choice for a model.  In fact, my hypothesis was wrong, the parabola effect did not produce better results.  Therefore, I will reject my initial hypothesis and will go with the pho_lmer2 model where phosphate level is explained by initial level & time*group & (1 | observation).
+
+
+
+#Coefficients of the model
+
+```{r echo=TRUE}
+
+cftest(pho_lmer2)
+
+
+``` 
+
+
+
+#Residual and QQnorm plots of the Mixed Effects Model
+
+
+
+```{r, fig.width=9, fig.height=6}
+
+
+plot(pho_lmer2, main='Residual vs Fitted', xlab='Fitted Values', ylab='Residuals')
+
+
+#most of the code structure was found in Cahpter_13 code.R file & the lecture. some modifications were made to get the desired variables for analysis
+residuals <- function(object, obs) obs-predict(object) 
+layout(matrix(1:2, ncol=2))
+qint2 <- ranef(pho_lmer2)$observation[['(Intercept)']]
+qres2 <- residuals(pho_lmer2, pho_long2$initial)
+qqnorm(qint2, ylab='Estimated Random Intercepts',
+       xlim = c(-3,3), ylim <- c(-20, 20),
+       main='Random Intercepts')
+qqline(qint2, col='orange', lwd=2)
+qqnorm(qres2, xlim = c(-3,3), ylim = c(-20,20),
+       ylab='Estimated Residuals',
+       main='Residuals')
+qqline(qres2, col='green', lwd=2)
+
+
+
+``` 
+
+
+#Summary of Model
+
+
+
+```{r echo=TRUE}
+
+summary(pho_lmer2)
+
+
+``` 
+
+
+#MSE of the model
+
+
+```{r echo=TRUE}
+library(sjstats)
+
+mse(pho_lmer2)
+
+``` 
+
+##Discussion
+
+When looking at the line graphs of Time vs Phosphate level my initial hypothesis was that it seemed to resemble aa upside down parabola. Time was on the x-axis and phosphate levels were on the y-axis.  From the graphs The phosphate levels initially started out high and then decreased until 1 hour and 30 minutes. At that point it seemed phosphate levels then changed directions and continued to increase until the last observation point which was at 5 hours. However, after fitting 4 models, two fixed linear regression and two mixed linear regression models it seemed better to reject the parabola idea for the model. After doing an anova command all 4 models it appeared that my hypthosis should be rejected. Sqauring the variable did not seem to produce better results in either fixed or mixed model after using the anova command on all 4 models.  The model that I chose was a mixed model with Phosphate level explained by Initial Time and time*group interaction and (1 | observation).  This seemed to produce the most promising results.  The summary of the model seemed to produce good results with many variables highly significant and low standard errors.  The plots, like residuals vs fitted looked good as the points all showed a straight cigar pattern (homoscedasticity). The QQ-Norms also looked like a good fit with all the points in line and not much deviation. The MSE of the model is 0.1508735
+
+

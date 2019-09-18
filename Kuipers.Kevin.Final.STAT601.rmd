@@ -1,0 +1,510 @@
+---
+title: "Kuipers.Kevin.Final.STAT601"
+author: "Kevin Kuipers"
+date: "December 10, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=F,warning=F,echo=F,fig_height=10,fig_width=7,cache = F)
+```
+
+
+##Abstract
+When starting off with the data set I was unsure what direction to go. My initial hypothesis was that on average the number of times a passcode is typed the faster one can become at typing it.  I had to start out by exploring and creating a variable of the total time it took for typing the passcode with each iteration in the data. I also created a time sequence variable for each subject. What this means, is that each subject typed the passcode 400 times. After exploring the total time to took to type the passcode each time it was typed I decided to focus the attention on the times sequence variable. What my research showed is that on average the more times the passcode is typed the faster it can be typed. However, on average not all variables (characters) in the passcode improved the number of times it was typed.  Some times improved while others increased in time. Therefore, I turned my attention on creating a model that could explain on average the number of times the passcode has been typed using 10 variables. Only 10 variables were used to prevent multicollinearity. Please see below regarding the research.
+
+
+
+##The following libraries will be used for working with the data and will need to be installed
+
+library(tidyverse)
+library(corrplot)
+library(plyr)
+library(ggplot2)
+library(mgcv)
+library(dplyr)
+library(tidyr)
+library(caret)
+library(mboost)
+library(gamair)
+library(sqldf)
+
+Therefore the folling packages will need to be installed:
+install.packages('tidyverse')
+install.packages('corrplot')
+install.packages('plyr')
+install.packages('ggplot2')
+install.packages('mgcv')
+install.packages('dplyr')
+install.packages('tidyr')
+install.packages('caret')
+install.packages('mboost')
+install.packages('gamair')
+install.packages('sqldf')
+
+
+
+##Loading Data set
+
+First, I will load the data set and then do some data manipulation in order to start exploring the data. I will obtain a total time column by summing up all the rows containing timestamps (columns 4-34) and insert the column at the end of the dataframe. This variable will be call ttime. 
+
+I will also create a time sequence for each subject.  This sequence will represent the number of times they typed the password thus far. So during their first session and their first rep they will have the number 1 recorded. During their second session and first rep they will have the number 51 recorded. And for the last session and the last rep each subject will have the number 400 recorded since that is the 400th time each subject typed the password.  
+
+After that I will load the sqldf library found (install.packages('sqldf')) in order to query the data and grab the first rep and last rep for each session per subject. I am looking to see if the typing speed increases over time. Boxplots will be produced for the beggining rep and end rep of each session to see if the total time for typing the passcode is decreasing with each iteration. 
+
+
+```{r echo=FALSE}
+#install.packages('plyr')
+#install.packages('corrplot')
+library(sqldf)
+library(tidyverse)
+library(corrplot)
+library(plyr)
+library(mgcv)
+library(dplyr)
+library(tidyr)
+library(caret)
+library(mboost)
+library(gamair)
+
+set.seed(123)
+
+#Loading Data set
+ds <- read.csv("~/DSU/Classes/2018/Fall 2018/Applied Stats 601/Final/DSL-StrongPasswordData.txt", sep="")
+#Making sure the data set is a dataframe
+ds <- as.data.frame(ds)
+
+#Summing up all the time columns to acquire total time it took to type the password and putting back in the dataframe
+ttime <- rowSums(ds[4:34])
+ds <- cbind(ds, ttime)
+
+
+#Creating time sequence of how many times each subject as type the password and inserting it back into the dataframe. In order to creat boxplots a t will be tacked on to the timesequence 
+timeseq <- rep(seq(from=1, to=400, step=1),51)
+ds <- cbind(ds, timeseq)
+timeseqc <- sub("^", "t", ds$timeseq)
+
+ds <- cbind(ds, timeseqc)
+
+#querying the data in order to grab the first and 50th rep for each session
+ds_time <- sqldf("
+                 SELECT
+                 *
+                 FROM
+                 ds
+                 WHERE
+                 rep IN (1,50)")
+
+
+#creating factor levels so that boxplots in the ggplot are in ascending order
+ds_time$timeseqc <- factor(ds_time$timeseqc,
+                           levels = c('t1','t50','t51','t100','t101','t150','t151','t200','t201','t250','t251','t300','t301','t350','t351','t400'),ordered=TRUE)
+
+
+ggplot(ds_time, aes(x=timeseqc,y=ttime)) + geom_boxplot() + labs(title="Boxplots of Typing Speed", x='No. Times Typing The Passcode',y='Total Typing Time') + scale_x_discrete(labels=c(1,50,51,100,101,150,151,200,201,250,251,300,301,350,351,400))
+
+
+``` 
+
+#Boxplots per Time Sequence
+
+What is interesting from the boxplot above it appears there is a gradual decrease in the time it takes to type the password as the more times each subject has typed it. What is very interesting is that if you look at all the odd numbers (1,51, 101, 151, etc.) it appears they have greatest variability, whereas the even numbers (50, 100, 150, etc.) it appears they have the least variability in the total time it takes to type the password. The odd times represent the first rep of each session whereas the even times represents the last rep in each session. So it appears that even as the more they type it in one session (day) the speed to type it is faster and there is less variation in the data.  Whereas when is the first time for day even at day 8 the variability is greatest.  It also appears that there are some extreme values for each category, especially for the initial time each subject types the passcode for the very first time.
+
+Now I will look at the midpoint or middle rep for each session to see if the variability in total typing speed is close the last rep for each session. 
+
+```{r, fig.width=12, fig.height=8}
+ds_time2 <- sqldf("
+                 SELECT
+                 *
+                 FROM
+                 ds
+                 WHERE
+                 rep IN (1,25,50)")
+
+
+
+#creating factor levels so that boxplots in the ggplot are in ascending order
+ds_time2$timeseqc <- factor(ds_time2$timeseqc,
+                           levels = c('t1','t25','t50','t51','t75','t100','t101','t125','t150','t151','t175','t200','t201','t225','t250','t251','t275','t300','t301','t325','t350','t351','t375','t400'),ordered=TRUE)
+
+
+ggplot(ds_time2, aes(x=timeseqc,y=ttime)) + geom_boxplot() + labs(title="Boxplots of Typing Speed", x='No. Times Typing The Passcode',y='Total Typing Time') + scale_x_discrete(labels=c(1,25,50,51,75,100,101,125,150,151,175,200,201,225,250,251,275,300,301,325,350,351,375,400))
+
+``` 
+
+It appears that middle rep and last rep for each session seems to he be relatively close together.  Sometimes the there is less variability for the middle rep per session than the last rep per session. Othertimes it is the opposite. Either way they are very close. It still seems to hold that as time goes on in each session the the typing speed increases and reduced in variability.  Looking at the overall time sequence it deos seem to appear that the typing speed slightly increases and variavbility reduces. Extreme values still to exist for each of the time sequence groups found in the boxplot graph above.
+
+#Median & Average Time Per Session
+
+Now I will look at the median and average values for each of the 3 time sequence groups.
+
+
+
+```{r, fig.width=8, fig.height=6}
+
+ds_mm <- ddply(ds_time2, .(timeseq), summarize, avgtime=mean(ttime), mediantime=median(ttime))
+
+rep <- ifelse(ds_mm$timeseq %in% c(1,51,101,151,201,251,301,351), 'Beg',ifelse(ds_mm$timeseq  %in% c(50,100,150,200,250,300,350,400),'End','Mid'))
+
+ds_mm <- cbind(ds_mm, rep)
+
+
+ggplot(ds_mm, aes(x=timeseq, y=avgtime, group=rep, fill=rep)) + geom_col(data=ds_mm, stat='identity', position='dodge', width=1.5) + scale_x_continuous(breaks=c(0,50,100,150,200,250,300,350,400)) + scale_fill_discrete(name="Rep No.", breaks=c('Beg','Mid','End'), labels=c('First','Middle','Last')) + labs(title='Mean Typing Times by Time Sequence',x='No. Of Times Typed',y='Mean Typing Time')
+
+ggplot(ds_mm, aes(x=timeseq, y=mediantime, group=rep, fill=rep)) + geom_col(data=ds_mm, stat='identity', position='dodge', width=1.5) + scale_x_continuous(breaks=c(0,50,100,150,200,250,300,350,400)) + scale_fill_discrete(name="Rep No.", breaks=c('Beg','Mid','End'), labels=c('First','Middle','Last')) + labs(title='Median Typing Times by Time Sequence',x='No. Of Times Typed',y='Median Typing Time')
+
+
+
+``` 
+
+It appears that as the number of times they have typed the passcode the average and median values all seem to decrease.  Within each session the first rep contains the highest mean and median times compared to the last rep in each session.  The middle rep and last rep are pretty close together. For the most part when comparing the median and mean times are pretty close together however the mean values appear to be alittle higher than the median values--especially for the very first time. As shown in the boxplots there are quite a few outliers for each category which would affect the average times. 
+
+#Corrplot - Correleation of all continuous variables
+
+What all this tells us is that the amount of time it takes to type the passcode decreases the more times it is typed on average. Let us turn our attention and look at what variables (characters) in the passcode that really affect the total time in typing the passcode. I will run a quick correlation test of all the variables and see which ones have the highest correlation coefficients on the total time it takes to type the passcode. A package called corrplot will be used to quickly indentify correlations between total time and all the variables recorded by the keypad. 
+
+
+```{r, fig.width=15, fig.height=12}
+
+ds_cor <- cor(ds[2:36])
+
+
+corrplot(ds_cor)
+``` 
+
+This corrplot reveals the correlations between all continuous variables in the data set. It also shows that the variables that have a moderate to moderately-strong relationship between typing the characters and the total time for typing the passcode, it displays that some of the variables are also highly correlated amongst themselves. For example DD.I.Return and UD.I.Return are highly correlated amongst themselves but also contain around .60 correlation coefficient which is a moderate relationship for the total time it takes to type the passcode. Therefore, lets look at the specific variables that contain a moderate relationship between total time of typing the passcode and the specific chracters. 
+
+
+#Line Plots - Avg time per subject per session
+
+Lets look at each individual subject to see if their average typing time decreases among each session. This will help solidify if each person's typing speed is changing over time. If typing speed is changing over time then typing mechanics must be changing/adjusting in order to type the passcode faster.
+
+```{r echo=FALSE}
+
+sd <- sub("^", "s", ds_time$sessionIndex)
+ds_time <- cbind(ds_time, sd)
+ds_time$sd <- factor(ds_time$sd,
+                           levels = c('s1','s2','s3','s4','s5','s6','s7','s8'),ordered=TRUE)
+ds_mm_subject2 <- ddply(ds_time, .(sd, subject), summarize, avgtime=mean(ttime))
+
+ggplot(subset(ds_mm_subject2, subject %in% c('s002','s003','s004','s005','s006','s007','s008','s009','s010','s011','s012','s013')), aes(x=sd, y=avgtime, group=subject)) + geom_line(aes(color=subject), size=0.8) + labs(title='Average Typing Time Per Session', x='Session No.', y='Average Typing Time') + scale_x_discrete(labels=c(1,2,3,4,5,6,7,8))
+
+
+ggplot(subset(ds_mm_subject2, subject %in% c('s014','s015','s016','s017','s018','s019','s020','s021','s022','s023','s024','s025')), aes(x=sd, y=avgtime, group=subject)) + geom_line(aes(color=subject), size=0.8) + labs(title='Average Typing Time Per Session', x='Session No.', y='Average Typing Time') + scale_x_discrete(labels=c(1,2,3,4,5,6,7,8))
+
+ggplot(subset(ds_mm_subject2, subject %in% c('s026','s027','s028','s029','s030','s031','s032','s033','s034','s035','s036','s037')), aes(x=sd, y=avgtime, group=subject)) + geom_line(aes(color=subject), size=0.8) + labs(title='Average Typing Time Per Session', x='Session No.', y='Average Typing Time') + scale_x_discrete(labels=c(1,2,3,4,5,6,7,8))
+
+ggplot(subset(ds_mm_subject2, subject %in% c('s038','s039','s040','s041','s042','s043','s044','s045','s046','s047','s048','s049')), aes(x=sd, y=avgtime, group=subject)) + geom_line(aes(color=subject), size=0.8) + labs(title='Average Typing Time Per Session', x='Session No.', y='Average Typing Time') + scale_x_discrete(labels=c(1,2,3,4,5,6,7,8))
+
+
+ggplot(subset(ds_mm_subject2, subject %in% c('s050','s051','s052','s053','s054','s055','s056','s057')), aes(x=sd, y=avgtime, group=subject)) + geom_line(aes(color=subject), size=0.8) + labs(title='Average Typing Time Per Session', x='Session No.', y='Average Typing Time') + scale_x_discrete(labels=c(1,2,3,4,5,6,7,8))
+
+
+
+
+
+``` 
+
+When looking at each individual subject it appears that on average per session the total typing time is decreasing for each subject. However, some subjects seem to have a longer than average typing time causing outliers at each session.  Therefore, lets look at the boxplots of average typing time per session for each subject. I will also list the outliers for each subject and what session index they exist at because maybe there are repeating subjects that type slower than average.
+
+#Boxplot - Average time for all subjects per session
+
+Now lets look at some boxplots and determine the outliers in the data set
+
+
+```{r, fig.width=6, fig.height=4}
+
+
+ggplot(ds_mm_subject2, aes(x=sd,y=avgtime)) + geom_boxplot() + labs(title="Boxplots of Typing Speed", x='Session Number',y='Total Typing Time') + scale_x_discrete(labels=c(1, 2, 3,4,5,6,7,8))
+
+outliers = boxplot(ds_mm_subject2$avgtime, plot=FALSE)$out
+sessionoutliers <- ds_mm_subject2[ds_mm_subject2$avgtime %in% outliers,]
+
+sessionoutliers
+
+sqldf("SELECT
+      subject,
+      count(subject) as No_Times_Outlier
+      
+      FROM
+      sessionoutliers
+      
+      GROUP BY
+      subject
+      
+      ORDER BY
+      count(subject) DESC")
+
+``` 
+
+#Removing outliers & Scatterplots of Average Typing Times Per Time Sequence
+
+It appears that Subject049 is outlier 4 for sessions.  Subject036 is an outliers for 3 sessions. subject022, subject033, subject040 is outlier for 2 sessions. Since these 5 subjects are outliers for atleast 2 sessions or more I am going to remove them from the data set.  This might seem a little extreme, but I believe these subjects are slower than average for typing speed and in my case are going to affect my results for what I am trying to look at.  I want to see if on average the time it takes to type some of the characters explains how many times the passcode has been typed. This will only reduce the dataset by 5 subjects.  
+
+
+
+Lets look at correlation plot to see the relationship between all the variables in the time sequence data set that contains the averages of all the continuous variables. 
+
+
+I am going to try looking at the data from a different perspective. I am going to look at to see if that on average typing speed increases with each session and rep. I think average is a good statistic to look focus in on. I know that when I have to change my passcode at work every 120 days my typing mechanics change within that 120 time period. The passcode requires atleast 10 characters and one of the following must occur: uppercase, lowercase, special characters, and number. On average, the more times I typed the passcode the faster I can type it. Therefore, my typing mechanics change the more times I have typed it. However, there are times when I am not paying attentions or zoning out where I may not focus on typing my passcode, so there may be some times where it takes me longer even though I typed it 350 times. That is why I decided to look at the average per time typed.  On average are any of the mechanics pertaining to the number of times typing the passcode change? Typing a passcode over and over may be subjective as people are not really thinking about it the between 50th and 400th time. 
+
+Thus, I will create two data sets. The first data set will take the average of all the times in the data set per session. The second data set will take the average of all the times in the data set per rep. After this I will create a third data set taking the average of all the continuous variables. These data sets will not contain the subjects any longer. The focus will become what variables on average can be used to explain how many times the passcode has been typed.  In these three data sets I will produce scatterplots to see if on average the total typing time for typing the passcode decreases the more times it has been typed. 
+
+
+```{r, fig.width=8, fig.height=5}
+
+ds_remove <- sqldf("SELECT * FROM ds WHERE subject NOT IN ('s049','s036','s022','s033','s040')")
+
+
+ds_avg <- aggregate(ds_remove[4:35], list(sessionIndex=ds_remove$sessionIndex), mean)
+
+
+ds_avg2 <- aggregate(ds_remove[4:35], list(rep=ds_remove$rep), mean)
+
+ds_avg3 <- aggregate(ds_remove[4:35], list(timeseq = ds_remove$timeseq), mean)
+
+ggplot(ds_avg, aes(x=sessionIndex,y=ttime)) + geom_point() + labs(title="Scatterplot of Average Typing Time Vs Session No.", x='Session No.',y='Average Typing Time') + geom_smooth(method='loess', col='purple')
+
+ggplot(ds_avg2, aes(x=rep,y=ttime)) + geom_point() + labs(title="Scatterplot of Average Typing Time Vs No. Rep", x='Rep No.',y='Average Typing Time') + geom_smooth(method='loess', col='blue')
+
+ggplot(ds_avg3, aes(x=timeseq,y=ttime)) + geom_point() + labs(title="Scatterplot of Average Typing Time Vs No. Times Typing", x='No. Times Typed',y='Average Typing Time') + geom_smooth(method='loess', col='red')
+
+
+
+``` 
+
+It appears that on average the typing time decreases per session. It also appears that on average the typing time decreases with the number of reps. Therefore, the third plot shows that on average the typing time decreases as the number of times it has been typed. However, all 3 perspectives seem to decrease similar to quadratic function since of these graphs show a decrease as time goes on but then starts leveling off as time goes on. When looking at the reps it appears that the average typing time levels off around the 20th to 25th rep. In all cases this seems to suggest that typing mechanics would change over time, whether it is per session or per rep or per time sequence.  The third case containing the entire time sequence shows a sharp decreases at first from 0 - 100 then slowly decreases from that point on. 
+
+#Corrplot of Average typing times
+
+
+Lets look at correlation plot to see the relationship between all the variables in the time sequence data set that contains the averages of all the continuous variables. 
+
+
+```{r, fig.width=15, fig.height=12}
+
+
+ds_avg3_cor <- cor(ds_avg3[1:33])
+
+corrplot(ds_avg3_cor)
+
+``` 
+
+Most variables are highly correlated amongst themselves. For example:
+
+DD.period.t represents the time between pressing down the "." key to the time to press down the "t" key. 
+
+UD.period.t represents the time between the "." key coming up to the time to press down the "t" key.
+
+These variables are very similar for recording times and this kind of strong relationship exists amongst all the DD and UD for their specific character in the passcode. Therefore, to prevent multic
+
+
+#Corrplot of preventing multicollinearity 
+
+Since the variables are highly correlated I will create a matrix and remove all variables that have an absolute value of a correlation coefficient of .80.  Therefore, the variables with a correlation coefficient lower than .80 will remain in the data set. This is to prevent multicollinearity.
+
+
+
+Lets look at a data table containing correlation coefficients. 
+
+
+```{r, fig.width=8, fig.height=7}
+
+ds_avg4 <- ds_avg3
+
+timseq <- ds_avg4$timeseq
+ds_t <- ds_avg4[,!names(ds_avg4) %in% 'timeseq']
+
+tmp <- cor(ds_t)
+tmp[upper.tri(tmp)] <- 0
+diag(tmp) <- 0
+
+ds_avg4 <- ds_t[,!apply(tmp,2,function(x) any(x > abs(0.80)))]
+ds_avg4 <- cbind(ds_avg4, timeseq)
+
+ds_avg4_cor <- cor(ds_avg4)
+
+corrplot(ds_avg4_cor)
+
+ds_avg4_cor
+
+``` 
+
+
+#Scatterplots of variables explaining time seqeunce 
+
+Now lets look at scatter plots for each of the variables explaining the time sequence variable to determine the relationship 
+
+
+```{r echo=FALSE}
+
+plot(timeseq ~ H.period + UD.t.i + H.i + UD.i.e +  H.e + H.five + H.Shift.r + H.o + H.a + H.n + H.l + H.Return + ttime , data=ds_avg4)
+
+
+``` 
+
+When looking at the relationships between time sequence and all other variables it appears H.period, H.five, and H.Return do not have much of a relationship.  Therefore, I will not use them in a the linear regression model. UD.t.i, H.n, and ttime seem to have a quadratic relationship. Therefore, I will sqaure these terms and include them in model process. What is interesting is that it appears that on average the more times the passcode is typed the longer it takes to type certain characters and in other variables it appears that the more times the password is typed the shorter it takes for certain characters. For example:
+
+H.i
+H.e
+H.shift.r
+H.o
+H.a
+H.n
+H.l
+
+all have a postive relationship with the time sequence variable.  Therefore, it appears that on average the more times the passcode is typed the longer it takes for these characters to be completed. In contrast the follow variables have a negative relationship:
+
+
+UD.t.i
+UD.i.e
+UD.o.a
+ttime
+
+This suggests that the times for these variables are decreasing the more times the passcode is typed on average. So even though some variables are taking longer to type the more times the passcode is typed the total time (ttime) it takes to type the passcode is decreasing. 
+
+#Training & testing split 
+
+Now lets split the data up into training vs testing. 70% of the data will be used for training and 30% for testing. This will done so different models can be developed and determine which one is best for explaining on average how many times a person has typed a passcode. For splitting the data I will use a library called caret (install.packages('caret'))
+
+
+
+```{r echo=FALSE}
+
+
+ds_avg4_mutate <- ds_avg4 %>%
+  mutate(ttime2 = - (ttime^2),
+         UD.t.i2 = -(UD.t.i^2),
+         H.n2 = H.n^2)
+
+
+smp_size <- floor(0.7*nrow(ds_avg4_mutate))
+
+train_ind <- sample(seq_len(nrow(ds_avg4_mutate)),size=smp_size)
+
+train.data <- ds_avg4_mutate[train_ind,]
+test.data <- ds_avg4_mutate[-train_ind,]
+
+
+
+``` 
+
+
+
+#Linear Regression Model Summary
+
+
+```{r echo=FALSE}
+
+
+set.seed(123)
+lm_model <- lm(timeseq ~ UD.t.i + UD.t.i2 + H.i + UD.i.e + H.e + H.o + H.n + H.n2 + ttime + ttime2 + H.a + H.l, data=train.data)
+
+summary(lm_model)
+
+plot(lm_model, which=1)
+
+lm_predictions <- lm_model %>% predict(test.data)
+
+``` 
+
+The summary of the model shows that all the variables used in the model are highly significant. The R-squared value contains a good value of .87. than I would like especially when there is a huge difference between residual standard error and degrees of freedom.
+
+The residulas vs fitted plot displays homoscedasticity which is a good for fitting a model. There does not appear to be any heteroscedasticity. Lets check the error rate of the model against the test data.  
+
+
+#Accuracy of the model 
+
+Now I will test the accuracy of the model against the testing data to see how it compares. I will acquire the error rate. 
+
+```{r echo=FALSE}
+
+lm_rmse <- RMSE(lm_predictions, test.data$timeseq)
+
+lm_rmse/mean(test.data$timeseq)
+
+``` 
+
+
+The error rate is roughly 20.4% so the model has an accuracy rate of roughly 79.6%.  Lets try a gam model to see if the error rate will go down if some splines are included. Since the data will contain splines I will not use any of the squared terms as covariates.
+
+
+#GAM Model summary 
+
+```{r echo=FALSE}
+set.seed(123)
+gam_model <- gam(timeseq ~ s(UD.t.i) + s(H.i) + s(UD.i.e) + s(H.e) + s(H.Shift.r) + s(H.o) + s(H.n) + s(ttime) + s(H.a) + s(H.l),  data=train.data)
+
+summary(gam_model)
+
+
+``` 
+
+#GAM Model plot
+
+
+```{r echo=FALSE}
+par(mfrow=c(2,4))
+plot(gam_model,select=1)
+plot(gam_model,select=2)
+plot(gam_model,select=3)
+plot(gam_model,select=4)
+plot(gam_model,select=5)
+plot(gam_model,select=6)
+plot(gam_model,select=7)
+plot(gam_model,select=8)
+plot(gam_model,select=9)
+plot(gam_model,select=10)
+
+``` 
+
+All the variables are highly signiciant. It appears the GAM model has a higher R-sqaured value at around .92. Now I will look at the accuracy of the model by testing the training data against the testing data. 
+
+
+#GAM Model Error Rate
+
+
+```{r echo=FALSE}
+set.seed(123)
+gam_predictions <- gam_model %>% predict(test.data)
+gam_rmse <- RMSE(gam_predictions, test.data$timeseq)
+                             
+gam_error_rate <- gam_rmse/mean(test.data$timeseq)
+gam_error_rate
+
+``` 
+
+It appears the GAM model error rate droped by about 4% lower than the regular linear regression model. The GAM model the accuracy is roughly 83.97%. I am going to try a gamboost model to see if the error rate will decrease further.
+
+#GAMboost model Error Rate
+
+
+```{r echo=FALSE}
+set.seed(123)
+gamboost_model <- gamboost(timeseq ~ ., data=train.data)
+
+gamboost_predictions <- gamboost_model %>% predict(test.data)
+gamboost_rmse <- RMSE(gamboost_predictions, test.data$timeseq)
+
+                             
+gamboost_error_rate <- gamboost_rmse/mean(test.data$timeseq)
+
+gamboost_error_rate
+
+
+
+``` 
+
+#GAMBoost R2 Value
+
+```{r echo=FALSE}
+set.seed(123)
+
+R2(gamboost_predictions, test.data$timeseq)
+
+``` 
+
+#Discussion 
+
+It appars the GAMboost model has a higher error rate than the GAM model.  Therefore, my model selection will be the GAM model. The model's accuracy is almost 85% which is not amazing but definitely not bad.  What this overall study has shown me is that typing mechanics change over time. After these 50+ subjects have typed the passcode 400 times the certain characters (variables) within the passcode have improved in time or have gotten worse in time. Nevertheless, even though for some of the variables that took longer the overall it took to type the passcode time decreased. This shows that on average typing mechanics change over time.  I know that when I have to change my passcode at work every 120 days my typing mechanics change within that 120 time period. The passcode requires atleast 10 characters and one of the following must occur: uppercase, lowercase, special characters, and number. On average, the more times I typed the passcode the faster I can type it. Therefore, my typing mechanics change the more times I have typed it. However, there are times when I am not paying attentions or zoning out where I may not focus on typing my passcode, so there may be some times where it takes me longer even though I typed it 350 times. That is why I decided to look at the average per time typed. Because on average the typing times and mechanics are changing.
+

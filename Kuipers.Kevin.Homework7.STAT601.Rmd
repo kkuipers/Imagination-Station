@@ -1,0 +1,550 @@
+---
+title: "Homework 7 - STAT 601"
+output:
+  html_document:
+    df_print: paged
+---
+
+##Kevin Kuipers (Completed Byself)
+##October 9, 2018
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=F,warning=F,echo=T,fig_height=10,fig_width=7,cache = F)
+
+```
+
+##Problem 1)
+
+Q 1. An investigator collected data on survival of patients with lung cancer at Mayo Clinic. The investigator would like you, the statistician, to answer the following questions and provide some graphs. Use the \textbf{cancer} data located in the \textbf{survival} package.
+
+I will load some of the libraries needed and will look at the attributes of the cancer data set by using the command ?cancer
+
+ 
+```{r echo=TRUE}
+
+library(tidyverse)
+library(survival)
+data('cancer')
+#To look at the description of the data set and the variables within
+#?cancer
+
+```  
+
+
+
+```{r echo=TRUE}
+
+#It appears the following variables represent:
+
+#inst:	 Institution code
+#time:	 Survival time in days
+#status:	 censoring status 1=censored, 2=dead
+#age:	 Age in years
+#sex:	 Male=1 Female=2
+#ph.ecog:	 ECOG performance score (0=good 5=dead)
+#ph.karno:	 Karnofsky performance score (bad=0-good=100) rated by physician
+#pat.karno:	 Karnofsky performance score as rated by patient
+#meal.cal:	 Calories consumed at meals
+#wt.loss:	 Weight loss in last six months
+
+```  
+
+
+
+
+##Problem 1 A)
+
+    a. What is the probability that someone will survive past 300 days?
+
+
+I will use the survfit to fit the model with status==2 since 2 represents death. After fitting the model I will create a dataframe out of the summary of the model containing the risk, event, censor, standard error,95% lower and 95% upper confidence interval, time, and survival probability. This will be done in order to easily grab the probability that someone will survive at certain number of days. 
+
+```{r echo=TRUE}
+
+#fitting the model
+surv_cancer <- survfit(Surv(time, 1*(status==2))~1, data=cancer)
+
+#Grabbing the summary of the model
+surv_cancer_summary <- summary(surv_cancer)
+
+
+#Creating Dataframe 
+nrisk <-  surv_cancer_summary['n.risk']
+nevent <- surv_cancer_summary['n.event']
+ncensor <-surv_cancer_summary['n.censor']
+stderror <- surv_cancer_summary['std.err']
+lowerconf <- surv_cancer_summary['lower']
+upperconf <- surv_cancer_summary['upper']
+time <- surv_cancer_summary["time"]
+survival <- surv_cancer_summary['surv']
+
+surv_cancer_summary_dat <- data.frame (
+  nrisk,
+  nevent,
+  ncensor,
+  stderror,
+  upperconf,
+  lowerconf,
+  time,
+  survival
+)
+
+#Trying to figure out the cloest case to when an event occurs at 300
+#In this case it would be 293
+#subset(surv_cancer_summary_dat, time>=290 & time <=301)
+
+#Outputting the probability
+cat("The probability that someone will survive past 300 days: ", subset(surv_cancer_summary_dat, time==293, surv)[,1])
+
+
+```  
+
+
+
+##Problem 1 B)
+
+
+    b. Provide a graph, including 95% confidence limits, 
+    of the Kaplan-Meier estimate of 
+       the entire study.
+
+First I plot the survival fit model using the plot() command then I will use ggplot.  In order to ggplot the library ggfortify needs to be loaded and then using the autoplot() on the model will produce the desired results.
+
+
+```{r echo=TRUE}
+
+#Regular Plot Command of the survival fit model 
+plot(surv_cancer,main='Kaplan Meier Estimate - Plot of survfit of Cancer Data Set', ylab='Probability Of Survival',xlab='Time (Days)')
+
+
+```  
+
+```{r echo=TRUE}
+
+library(ggfortify)
+
+#ggplot of the survival fit model 
+autoplot(surv_cancer) + labs(title="Kaplan Meier Estimate - Plot of survfit of Cancer Data Set", y='Probability of Survival',x='Time (Days)')
+
+
+```  
+
+
+It appears that as time goes on the probability of survival decreases.  It looks similar to a quadratic function. It appears that at roughly 300 days the probability of survival is 53% as when we calculated the probability.  
+
+##Problem 1 C)
+    
+    c. Is there a difference in the survival rates between males and females? 
+    Provide a formal  statistical test with a p-value and visual evidence.
+
+This time I will fit a model with time and status explained by sex to see if there is a difference between males and females probabilities of survival
+
+```{r echo=TRUE}
+
+#fiting the model
+surv_cancer2 <- survfit(Surv(time, status)~sex, data=cancer)
+
+#grabing the summary of the model
+surv_cancer2_summary <- summary(surv_cancer2)
+
+```  
+
+#Plot of Kaplan-Meier estimate of Males Vs. Females
+
+plot() command will be the first plot and the ggplot will be from the library known as survminer using the ggsurvplot() command. In addition, the ggsurvplot will produce the p-value 
+
+```{r, fig.width=7, fig.height=5} 
+
+
+#Plot() command of the males vs females for the Kaplan-Meier Estimate 
+plot(surv_cancer2, col=c('red','blue'), lty=c(2,1), main='Kaplan Meier Estimate - Males vs. Females', xlab="Time (Days)", ylab="Probability of Survival")
+legend("topright", legend=c("Male", "Female"), lty=c(2,1), fill=c('red','blue'))
+       
+#Library to output the Kaplan-Meier Estimate for ggplot()
+library(survminer)
+       
+##ggplot() of the malesa vs females for the Kaplan-Meier Estimate 
+ggsurvplot(surv_cancer2, data=cancer, legend='right',legend.labs = c('Male','Female'), conf.int=TRUE, pval=TRUE, pval.method = TRUE, ggtheme=theme_light()) + labs(title='Kaplan Meier Estimate - Males vs. Females', x="Time (Days)", y="Probability of Survival") 
+
+```  
+
+#Cox Proportional Hazards Function Summary of Geneder
+
+```{r echo=TRUE}
+
+#Summary of Cox Proportional Hazards
+summary(coxph(Surv(time,status==2)~sex, data=cancer))
+
+
+```  
+
+
+#Building a separate model for each gender
+
+
+First I will subset and acquire two data sets.  One data set consiting of only males and the other one will be only females.  This will be done using the subset command 
+
+
+```{r echo=TRUE}
+
+#male data set
+males <- subset(cancer, sex==1)
+
+#Female data set
+females <- subset(cancer, sex==2)
+
+#male survival fit
+surv_males <- survfit(Surv(time, 1*(status==2))~1, data=males)
+
+#females survival fit
+surv_females <- survfit(Surv(time, 1*(status==2))~1, data=females)
+
+
+```  
+
+
+##Survival Probability at 300 days
+
+Male probability of surviving at 300 days
+
+
+```{r echo=TRUE}
+
+summary(surv_males, time=300)['surv']
+
+```  
+
+Female probability of surviving at 300 days
+
+
+```{r echo=TRUE}
+
+summary(surv_females, time=300)['surv']
+
+``` 
+
+##Problem 1 C Response:
+The ggsurvplot contains the p-value between the groups and the pvalue method used was log rank. It appears gender is significant with a pvalue of 0.001312.  In addition, the graphs and the 300 day survival rate is pretty different between genders.  The probability for survival for males is 0.44 at 300 days. In contrast, the probability for survival for females is roughly 0.67 at 300 days. Even from the graphs it appears males have lower probabilities of survival compared to females.
+
+
+
+##Problem D)
+
+    d. Is there a difference in the survival rates for the older half of the group versus 
+       the younger half? Provide a formal statistical test with a p-value and visual evidence.
+       
+       
+First I will output the summary descriptive statistics using the describeBy command found in the psych library. I will then use a hist() and ggplot() commands to look at a histogram of the age population found in the data set, cancer. Two vertical lines will be added to the histogram, one looking at average and the other looking at the median. 
+
+
+```{r echo=TRUE}
+
+#Loading the library psych for descriptive stats on age
+library('psych')
+
+#outputting the descriptive stats for age
+describeBy(cancer$age, group=NULL)
+
+#ploting using the plot() command for age
+hist(cancer$age, main='Histogram of Age from Cancer Data Set',xlab='Age',ylab='Frequency')
+abline(v=mean(cancer$age), col='red')
+abline(v=median(cancer$age), col='blue')
+legend("topright", legend=c("Mean", "Median"), fill=c('red','blue'))
+
+#ploting histogram of age from the cancer data set
+ggplot(cancer, aes(age)) + 
+  geom_histogram(fill='cornsilk', color='grey60') + 
+  geom_vline(data=cancer, aes(xintercept=mean(cancer$age), color='Mean'), size=1., show_guide=TRUE) + 
+  geom_vline(data=cancer, aes(xintercept=median(cancer$age), color='Median'), size=1., show_guide=TRUE) +
+labs(fill='color1', color='Line Value', title='Histogram of Age From the Cancer Data Set', x='Age',y='Freqeuncy')
+
+```  
+
+
+The average and the median are fairly close together for age together.  However, I will use the median since it represents the mid point of the data set for age. In this case the median value is age 63. I will include age 63 and younger for the first data set. The second data set will be greater than age 63. I will also create a third data set including the categorical variable indicating less than or equal to 63 or greater than 63. First I will do a quick count to see how many patients represent age 63. 
+
+
+```{r echo=TRUE}
+library(sqldf)
+
+#Finding how many observations are age 63
+sqldf(
+'SELECT
+
+count(age) as "No. of Patients that are age 63"
+
+FROM
+cancer
+
+WHERE
+age=63
+')
+
+```         
+
+
+
+#Subsetting the data
+
+
+
+```{r echo=TRUE}
+
+#Subsetting the the data for all age groups 63 and younger
+young <- subset(cancer, age<= 63)
+
+#subsetting the data for all age groups greater than 63
+old <- subset(cancer, age>63)
+
+#Creating categorical variable to one data set indicating less than or equal 63 or greater than 63
+
+
+cancer_append <- cbind(cancer, AgeGroup=ifelse(cancer$age<=63, 'Younger','Older'))
+
+``` 
+
+
+
+#Fitting Survival models 
+
+
+
+```{r echo=TRUE}
+
+#Fitting younger data set
+surv_young <- survfit(Surv(time, 1*(status==2))~1, data=young)
+
+#Fitting older data set
+surv_old <- survfit(Surv(time, 1*(status==2))~1, data=old)
+
+#Fitting cancer_append data set with categorical variable indicating age group
+surv_age <- survfit(Surv(time, status)~AgeGroup, data=cancer_append)
+
+
+```  
+
+
+
+#Plotting the data sets using plot() command
+
+
+
+```{r echo=TRUE}
+
+#ploting the probability of survival using the plot() command for Kaplan Meier Estimate
+plot(surv_age, col=c('green','purple'), main='Young Vs Older Population: Kaplan-Meier Estimate', xlab='Time (Days)', ylab='Probability')
+legend('topright', legend=c('Younger','Older'), fill=c('purple','green'))
+
+
+```  
+
+
+#Plotting the data sets using the ggsurvplot() command
+
+
+```{r echo=TRUE}
+
+#ploting the probability of survival using the ggplot() command for Kaplan Meier Estimate
+ggsurvplot(surv_age, data=cancer_append, legend='right', legend.title=c('Age Population'), legend.labs = c('Older','Younger'), conf.int=TRUE, pval=TRUE, pval.method=TRUE, ggtheme=theme_light()) + labs(title='Young Vs Older Population: Kaplan-Meier Estimate',x='Time (Days)', y='Probability')
+
+
+```  
+
+
+
+#Cox Proportional Hazards Function Summary of Age Group Populations
+
+```{r echo=TRUE}
+
+#Summary of Cox Proportional Hazards
+summary(coxph(Surv(time,status==2)~AgeGroup, data=cancer_append))
+
+
+```  
+
+
+
+#Probability of survival at 300 days for the Younger Population
+
+```{r echo=TRUE}
+
+summary(surv_young, time=300)['surv']
+
+
+``` 
+
+
+#Probability of survival at 300 days for the Older Population
+
+
+```{r echo=TRUE}
+summary(surv_old, time=300)['surv']
+
+```  
+
+
+#Young Vs Older Population Discussion:
+
+Looking at the graphs for the survival probabilities between the young (Age 63 and younger) and the older (Age 64 and older), it appears the young have alittle higher probability of survival. When look at the 300 day mark the younger population's probability of survival is 0.55 and the older population is 0.50.  The p-value shown in the graph and the summary of the cox hazard function us the log rank method with a p-value of 0.17 which is not significant at the 0.05 level. 
+
+
+##Problem 2)
+
+Q 2. A healthcare group has asked you to analyse the \textbf{mastectomy} data from the \textbf{HSAUR3} package, which is the survival times (in months) after a mastectomy of women with breast cancer. The cancers are classified as having  metastasized or not based on a histochemical marker. The healthcare group requests that your report should not be       longer than one page, and must only consist of one plot, one table, and one paragraph. Do the following:
+
+
+
+##Problem 2 A)
+
+    a. Plot the survivor functions of each group only using GGPlot, estimated using
+      the Kaplan-Meier estimate.
+      
+
+##GGplot of Kaplan-Meier Estimate For Women with Breast Cancer By Metastasized Category
+
+
+
+```{r, fig.width=9, fig.height=7} 
+#Loading the appropiate library and data set
+library(HSAUR3)
+data('mastectomy')
+
+#?mastectomy to look at what the variables represent 
+
+#Below are the variables and descriptions
+
+#time: survival times in months
+
+#event: a logical indicating if the event was observed (TRUE) or if the survival time was censored (FALSE).
+
+#metastasized: a factor at levels yes and no
+
+#creating a binary variable for event: 1=TRUE, 0=FALSE
+event <- ifelse(mastectomy$event==TRUE, 1,0)
+time <- mastectomy$time
+metastasized <- mastectomy$metastasized
+
+#Putting the above variables into a data frame called met
+
+met <- data.frame (
+  time,
+  event,
+  metastasized
+)
+
+#Fitting the survival model for Kaplan-Meier Estimate
+met_surv <- survfit(Surv(time, event==1)~metastasized, data=met)
+
+
+#ploting the probability of survival using the ggplot() command for Kaplan Meier Estimate
+ggsurvplot(met_surv, data=met, legend='right', legend.title=c('Metastasized'), legend.labs=c('No','Yes'), conf.int=TRUE,pval=TRUE, pval.method=TRUE, ggtheme=theme_grey(), risk.table=TRUE, risk.table.col='strata') + labs(title='Kaplan Meier Estimate: Mastectomy of Women with Breast Cancer', x='Time (Months)',y='Probability')
+
+
+```  
+
+
+      
+      
+##Problem 2 B)
+
+
+    b. Use a log-rank test to compare the survival experience of each group more formally. 
+       Only present a formal table of your results. 
+       
+       
+
+
+```{r echo=TRUE}
+
+#I will check to see what the probability of survival the metastasized and non-metastasized groups at time = 100 months.  The reason for 100 is because looking at the GGplot it looks like roughly the middle point of time. 
+
+#To do this I will split the data between these two groups and check the survival probaility between them
+
+
+#After that I will use the cox proportional hazard function and obtain the log-rank pvalue between the groups
+
+#After these steps are complete I will put the values into a data.frame for a formal table. 
+
+
+#Subsetting the data
+
+#Non-metastasized data set
+no <- subset(met, metastasized=='no')
+
+#metastasized data set
+yes <- subset(met, metastasized=='yes')
+
+#Fitting the survival model on Non-metastasized data set
+no_surv <- survfit(Surv(time, 1*(event==1))~1,data=no)
+#Fitting the survival model on the metastasized data set
+yes_surv <- survfit(Surv(time, 1*(event==1))~1, data=yes)
+
+
+#grabbing the probability of survival at 100 months for non-metastasized population
+no_summary <- summary(no_surv, time=100)['surv']
+
+#grabbing the probabilty of survival at 100 months for metastasized population
+yes_summary <- summary(yes_surv, time=100)['surv']
+
+#No using the Cox proportional hazard function and obtaining the log-rank pvalue between the metastasized populations
+
+cox_summary <- summary(coxph(Surv(time,event==1)~metastasized, data=met))
+
+#Grabbing the values from Cox Proportional hazard function summary log test
+pval <- cox_summary['logtest']
+
+#unlisting the values
+pval <- unlist(pval)
+
+Log.Rank.Pvalue <- pval['logtest.pvalue']
+
+
+#Creating Data Frame
+table1 <- data.frame(
+  no_summary,
+  yes_summary,
+  Log.Rank.Pvalue
+)
+
+#Renaming Headers
+names(table1) <- c("Probability of Survival For Non-Metastasized at 100 Months", "Probability of Survival of Metastasized at 100 Months", "Log Rank P-Value Between Groups")
+
+library(data.table)
+#transposing columns to rows for a neater look
+t_table1 <- transpose(table1)
+
+colnames(t_table1) <- rownames(table1) 
+rownames(t_table1) <- colnames(table1)
+
+#Rename name the column Value to correspond the value for each row
+library("dplyr")
+rename(t_table1, Value = logtest.pvalue)
+
+
+```  
+
+
+
+```{r echo=TRUE}
+summary(surv_old, time=300)['surv']
+
+```  
+
+  
+  
+  
+       
+##Problem C)
+
+
+    c. Write one paragraph summarizing your findings and conclusions. 
+
+
+##Discussion:
+
+When looking at the graph it appears that the Non-Metastasized group for Women with breast cancer consistently have a higher probability of survival given any time for the study.  For a specific example, the probabilities for survival at 100 months for non-metastasized is 0.750 whereas the metastasized probability for survival is 0.437. The Log Rank P-value is significant but not at the 0.05 level. The shaded regions in the graph represent the confidence intervals and it is rather disconcerting since the confidence intverals/shading is so large amoung both groups but especially the non-metastasized group. 
+
+
+
+
+

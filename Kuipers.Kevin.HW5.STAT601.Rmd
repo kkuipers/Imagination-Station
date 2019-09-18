@@ -1,0 +1,749 @@
+---
+title: "Homework 5 - STAT 601"
+output: pdf_document
+---
+
+##Kevin Kuipers (Completed by myself)
+##September 25, 2018
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=F,warning=F,echo=F,fig_height=10,fig_width=7,cache = F)
+```
+
+
+##Problem 1. 
+The BostonHousing dataset reported by Harrison and Rubinfeld (1978) is available as data.frame package mlbench (Leisch and Dimitriadou, 2009). The goal here is to predict the median value of owner-occupied homes  (medv variable, in 1000s USD) based on other predictors in the dataset. Use this dataset to do the following 
+
+##Problem 1 part a)
+
+    a.) Construct a regression tree using rpart(). The following need to be included in your discussion. 
+    How many nodes did your tree have? 
+    Did you prune the tree? 
+    Did it decrease the number of nodes? 
+    What is the prediction error (calculate MSE)?  
+    Provide a plot of the predicted vs. observed values. Plot the final tree.
+
+
+##Problem 1 Part a) Constructing and ploting a decision tree
+
+I will fit a regressiong tree using rpart(). with doing a minsplit of 10. After the fit I will plot the model to see the results of the trees and variables used.   The seed I will be using for repoducibility is 929270. First tree plot will be using plot(as.party()) command.
+
+```{r, fig.width=16, fig.height=10} 
+library("vcd")
+library("lattice")
+library("randomForest")
+library("party")
+library("partykit")
+library("mboost")
+library("TH.data")
+library("ipred")
+library("rpart")
+library("mlbench")
+library('ggdendro')
+
+data(BostonHousing)
+
+#Setting seed for reproducibility 
+set.seed(seed = 929270)
+
+#Constructing a regressiong tree using rpart()
+bh_rpart <- rpart(medv ~ ., 
+                  data=BostonHousing,
+                  control = rpart.control(minsplit = 10))
+
+#Ploting the rpart() model 
+plot(as.party(bh_rpart),
+     to_args = list(id=FALSE))
+
+```
+
+
+##GGplot Tree Diagram
+
+```{r, fig.width=10, fig.height=8} 
+
+ggdendrogram(bh_rpart, segments=TRUE, labels=TRUE, leaf_labels=TRUE, rotate=FALSE, theme_dendro=TRUE) 
+
+```
+
+
+
+##CP Plot & Table
+
+```{r echo=FALSE}
+plotcp(bh_rpart)
+bh_rpart$cptable
+
+```
+
+
+It appears that nsplit = 8 has the lowest xerror value = 0.2553457. Therefore, the current model does not need any pruning which is currently set at 9 nodes. 
+
+##Pruning with the lowest xerror value
+
+
+For the sake of trial with pruning I will take the node number with the lowest xerror value and cp value and run it through fitting the model with these numbers in mind.  Just to see if the decision tree model looks better.
+
+
+```{r, fig.width=16, fig.height=14}
+
+#grabing the node number containing the lowest xerror value from the original model bh_rpart
+low_xerror <- which.min(bh_rpart$cptable[,'xerror'])
+
+#grabbing the lowest CP value from the original model bh_rpart
+cp <- bh_rpart$cptable[low_xerror, 'CP']
+
+
+#prunning the tree using the lowest CP value value from the original model 
+bh_prune <- prune(bh_rpart, cp = cp)
+
+#plotting the pruned tree
+plot(as.party(bh_prune),
+     to_args = list(id=FALSE))
+
+#printing the pruned CP table
+bh_prune$cptable
+
+```
+
+##GGplot of Pruned Model
+
+
+```{r, fig.width=10, fig.height=8} 
+
+ggdendrogram(bh_prune, segments=TRUE, labels=TRUE, leaf_labels=TRUE, rotate=FALSE, theme_dendro=TRUE) 
+
+```
+
+
+The plot and the table both reveal the same results before the pruning.  Therefore, as you can see no pruning was required from the original model. The 9 node model contained the lowest xerror value. 
+
+
+
+##Problem 1 part a) Calculating the MSE 
+
+First I have to use the predict function comparing the model to the BostonHousing data set and then using it to compute the MSE
+
+
+```{r echo=FALSE}
+
+bh_rpart_predict <- predict(bh_rpart, data=BostonHosing)
+
+cat("The MSE is: ", mean((BostonHousing$medv - bh_rpart_predict)^2))
+
+```
+
+##Plotting the Observed vs Predicted
+
+
+The first plot will be using the plot() command looking at the observed median income vs the predicted median income for owner home occupied homes.  The second plot will be using ggplot() command. In order to do this for ggplot I will create a data frame containing the predicted value and the observed value. 
+
+```{r echo=FALSE}
+
+#Base r-plot 
+plot(bh_rpart_predict ~ medv, data=BostonHousing, xlab='Observed Median Income', ylab='Predicted Median Income', main='Predicted vs Observed Plot - Home-Owned Occupied Homes')
+abline(a=0, b=1)
+
+#Creating data frame of the BostonHousing data set and combining the predicted value from the regression tree model
+
+observed <- BostonHousing$medv 
+predicted <- bh_rpart_predict
+
+
+bh <- data.frame(
+  observed,
+  predicted
+)
+library(tidyverse)
+ggplot(data=bh, aes(x=observed, y=predicted)) +
+  geom_point() + 
+  geom_smooth(method='lm', col='purple') + 
+  labs(title='Predicted vs Observed Plot - Home-Owned Occupied Homes', x='Observed Median Income', y='Predicted Median Income')
+
+
+
+
+```
+
+
+##Problem 1 part a Final)
+
+The final model contain 9 nodes with a xerror value of 0.2553457 and a MSE of 12.71556.  There was no need of pruning and even when going through th exercise if pruning with lowest xerror value the models were the same. Displayed above are the two plots of observed vs predicted to look at variability between the out comes. For the most part the variability between predicted and observes follows similar patterns as Median income increases.
+
+
+##Problem 1 part b)
+
+    b) Perform bagging with 50 trees. Report the prediction error (MSE). 
+    Provide the predicted vs observed plot. 
+
+
+
+## Calculating the MSE - Bagging 50 trees
+
+I will perform bagging with 50 trees and output the prediction error (MSE)
+
+```{r echo=FALSE}
+
+bh_trees <- vector(mode = 'list', length=50)
+n <- nrow(BostonHousing)
+bootsamples <- rmultinom(length(bh_trees), n, rep(1,n)/n)
+bh_rpart2 <- rpart(medv ~ ., data=BostonHousing,
+             control = rpart.control(xval=0))
+
+for (i in 1:length(bh_trees))
+  bh_trees[[i]] <- update(mod, weights=bootsamples[,i])
+
+
+
+bh_rpart_predict2 <- predict(bh_rpart2, data=BostonHousing)
+
+cat("The MSE for bagging with 50 trees is :", mean((BostonHousing$medv - bh_rpart_predict2)^2))
+
+```
+
+##Plotting Observed vs Predicted - Bagging 50 trees
+
+
+First I will plot using the base-r plot(). Then I will plot using gpplot(). In order to do this for ggplot I will create a data frame containing the predicted value and the observed value. 
+
+```{r echo=FALSE}
+
+#Base r-plot 
+plot(bh_rpart_predict2 ~ medv, data=BostonHousing, xlab='Observed Median Income', ylab='Predicted Median Income', main='Predicted vs Observed Plot - Home-Owned Occupied Homes (50 trees)')
+abline(a=0, b=1)
+
+#Creating data frame of the BostonHousing data set and combining the predicted value from the regression tree model
+
+observed2 <- BostonHousing$medv 
+predicted2 <- bh_rpart_predict2
+
+
+bh2 <- data.frame(
+  observed2,
+  predicted2
+)
+
+ggplot(data=bh2, aes(x=observed2, y=predicted2)) +
+  geom_point(col='red') + 
+  geom_smooth(method='lm', col='blue') + 
+  labs(title='Predicted vs Observed Plot - Home-Owned Occupied Homes (50 trees)', x='Observed Median Income', y='Predicted Median Income')
+
+
+```
+
+
+
+##Problem 1 part b final)
+It appears that 50 trees made the variability worse for predicting median income. When looking at the first model's observed vs predicted plots and comparing them to the bagging with 50 trees it has gotten worse--more variability between observed vs predicted. Therefore, I would go with the first model. 
+
+
+
+##Problem 1 part c)
+
+
+    c) Use randomForest() function in R to perform bagging. 
+    Report the prediction error (MSE). 
+    Was it the same as (b)? 
+    If they are different what do you think caused it?  
+    Provide a plot of the predicted vs. observed values.
+    
+
+##Random Forest mtry=13 MSE
+
+In order to compute the MSE I will create a data frame containing the Median income from the BostonHousing data set and another column for the predicted value from the random forest model with using all 13 variables found in the original data set. 
+
+```{r echo=FALSE}
+library('randomForest')
+
+#Random Forest model
+bh_rf <- randomForest(medv ~., data=BostonHousing, mtry=13)
+bh_rf_predict <- predict(bh_rf, data=BostonHousing)
+
+#creating data frame
+observed3 <- BostonHousing$medv
+predict3 <- bh_rf_predict
+
+bh_rf_df <- data.frame(
+  observed3,
+  predict3
+)
+
+#outputting the MSE
+cat('The MSE for RandomForest Model: ', mean((observed3 - predict3)^2))
+
+
+
+```
+
+It appears the MSE is lower using the random forest command with 50 trees
+
+
+##Random Forest mtry=13 - Observed vs Predicted Plot
+
+
+First I will plot in base R and then ggplot using the previously made data frame of observed vs predicted for the random forest model. 
+```{r echo=FALSE}
+
+#Base r-plot of observed vs predicted
+plot(bh_rf_predict ~ medv, data=BostonHousing, xlab='Observed Median Income', ylab='Predicted Median Income', main='Predicted vs Observed Plot Home-Owned Occupied Homes RandomForest')
+abline(a=0, b=1)
+
+
+
+#ploting observed vs predicted using ggplot
+ggplot(data=bh_rf_df, aes(x=observed3, y=predict3)) +
+  geom_point(col='blue') + 
+  geom_smooth(method='lm', col='red') + 
+  labs(title='Predicted vs Observed Plot - Home-Owned Occupied Homes RandomForest', x='Observed Median Income', y='Predicted Median Income')
+
+```
+
+
+The observed vs predicted plot using the random forest model looks alot better in terms of variability.  In general, the points cluster close together and closer to the regression line. Part of the reason random forest may perform better is because generates a random sample of the data and uses it to develop trees. In constrast, bagging utilizes all the variables to build its trees. During this process overfitting can occur or even variables that are not beneficial in being predictors can occur in the model. Therefore, bagging can select variables that are not good predictors for the outcome and thus increase the error rates. 
+
+
+
+##Probelm 1 part d)
+
+    d) Use randomForest() function in R to perform random forest. 
+    Report the prediction error (MSE).  
+    Provide a plot of the predicted vs. observed values.
+    
+    
+I will use randomForest() command to perform a random forest model without any criteria in the model. I will also perform all the same tests above when looking at the randomForest model with mtry=13.  This time no mtry will be used for modeling.
+
+##Random Forest MSE 
+
+In order to compute the MSE I will create a data frame containing the Median income from the BostonHousing data set and the predicted value.
+
+```{r echo=FALSE}
+library('randomForest')
+
+#Random Forest model
+bh_rf2 <- randomForest(medv ~., data=BostonHousing)
+bh_rf_predict2 <- predict(bh_rf2, data=BostonHousing)
+
+#creating data frame
+observed4 <- BostonHousing$medv
+predict4 <- bh_rf_predict2
+
+bh_rf_df2 <- data.frame(
+  observed4,
+  predict4
+)
+
+#outputting the MSE
+cat('The MSE for RandomForest Model: ', mean((observed4 - predict4)^2))
+
+
+
+```
+
+It appears the MSE is lower using the random forest command with 50 trees
+
+
+##Random Forest - Observed vs Predicted Plot
+
+
+First I will plot in base R and then ggplot using the previously made data frame of observed vs predicted for the random forest model. 
+```{r echo=FALSE}
+
+#Base r-plot of observed vs predicted
+plot(bh_rf_predict2 ~ medv, data=BostonHousing, xlab='Observed Median Income', ylab='Predicted Median Income', main='Predicted vs Observed Plot Home-Owned Occupied Homes RandomForest')
+abline(a=0, b=1)
+
+
+
+#ploting observed vs predicted using ggplot
+ggplot(data=bh_rf_df2, aes(x=observed4, y=predict4)) +
+  geom_point(col='red') + 
+  geom_smooth(method='lm', col='green') + 
+  labs(title='Predicted vs Observed Plot - Home-Owned Occupied Homes RandomForest', x='Observed Median Income', y='Predicted Median Income')
+
+```
+
+
+##Problem 1 d Final)
+
+It appears the MSE is lower for the second random forest model than the first model.  The first random forest model used all 13 variables. The second model did not specify the number of variables.  Therefore, it continues to seem that that some variables are not "valulable" for predicting the desired outcome. This is why variable selection is important for developing a good model. 
+
+
+    e) Provide a table containing each method and associated MSE. 
+    Which method is more accurate?
+
+
+## MSE Table
+
+I will collect all the MSE values and put them into a data frame. 
+
+```{r echo=FALSE}
+
+rpart_Trees <- mean((BostonHousing$medv - bh_rpart_predict)^2)
+bagging_50 <- mean((BostonHousing$medv - bh_rpart_predict2)^2)
+Random_Forest_mtry13 <- mean((observed3 - predict3)^2)
+Random_Forest <- mean((observed4 - predict4)^2)
+
+MSE_Table <- data.frame (
+  rpart_Trees,
+  bagging_50,
+  Random_Forest_mtry13,
+  Random_Forest
+)
+
+MSE_Table
+
+
+```
+
+##Problem 1 Final)
+It appears using the default parameters for randomForest() command tends to produce the lowest MSE. This seems to suggest that it is not limited to using all the variables within the data set and thus randomly chooses which variables are the best predictors. Whereas using mtry=13 starts of selecting all 13 variables and thus can use variables that are not good predictors for the model. 
+
+
+## Problem 2. 
+Consider the glacoma data (data = "GlaucomaM", package = "TH.data").
+
+    a) Build a logistic regression model. 
+    Note that most of the predictor variables are highly correlated. 
+    Hence, a logistic regression model using the whole set of 
+    variables will not work here as it is sensitive to correlation.
+        begin(verbatim)
+        glac_glm <- glm(Class ~., data = GlaucomaM, family = "binomial")
+        #warning messages  -- variable selection needed 
+        end(verbatim)
+
+       The solution is to select variables that seem to be 
+        important for predicting the response and using 
+        those in the modeling process using GLM. 
+        One way to do this is by looking at the relationship between  cor(mtcars[,unlist(lapply(mtcars, is.numeric))])
+        the response variable and predictor variables using graphical 
+        or numerical summaries - this tends to be a tedious process. 
+        Secondly, we can use a formal variable selection approach. 
+        The step() function will do this in R. Using the step function, 
+        choose any direction for variable selection and fit logistic regression model. 
+        Discuss the model and error rate.
+        
+        begin(verbatim)
+        #use of step() function in R
+        ?step
+        glm.step <- step(glac_glm)
+        end(verbatim)
+       
+        
+       Do not print out the summaries of every single model built using variable selection. 
+        That will end up being dozens of pages long and not worth reading through. 
+        Your discussion needs to include the direction you chose. 
+        You may only report on the final model, the summary of that model, 
+        and the error rate associated with that model.
+
+
+
+
+```{r echo=FALSE}
+library(TH.data)
+data('GlaucomaM', package= 'TH.data')
+
+
+
+#Assigning binary variable to categorical variable Class. 1 is normal, 0 otherwise
+class <- ifelse(GlaucomaM$Class=='normal',1,0)
+
+#dropping the categorical variable "Class" to remove any variables that are collinear
+GlaucomaM.dat <- subset(GlaucomaM, select = -Class)
+
+#Creating a correlation matrix without the class variable
+correlation.matrix <- cor(GlaucomaM.dat)
+correlation.matrix[upper.tri(correlation.matrix)] <- 0
+diag(correlation.matrix) <- 0
+
+
+GlaucomaM <- GlaucomaM.dat[,!apply(correlation.matrix,2,function(x) any(x >abs(0.85)))]
+
+#creating dataframe with binary variable for class
+GlaucomaM.dat <- as.data.frame(cbind(class, GlaucomaM))
+
+
+#Running the step() command with the glm model
+glm.step <- step(glm(class ~ ., data=GlaucomaM.dat, family="binomial"), direction='both', trace=FALSE)
+
+formula(glm.step)
+
+```
+
+    b) Build a logistic regression model with K-fold cross 
+    validation (k = 10). Report the error rate.
+
+
+
+```{r echo=FALSE}
+
+#creating new data frame with with the desired variables from the formula of the step() command
+
+#length of GlaucomaM.dat
+l <- length(GlaucomaM.dat)
+
+
+folds <- sample(rep(1:10, length.out = l))
+error <- matrix(NA, nrow=10, ncol= l)
+
+#Building a loop to loop through a 10-fold cross validation model
+
+for (k in 1:10) {
+  test.f <- which(folds==k)
+  train <- GlaucomaM.dat[-test.f, ]
+  test <- GlaucomaM.dat[test.f, ]
+  cvglm.GlaucomaM.model <- glm(class ~ phct + phcs + phci + vbrn + vars + mdn + tms, data=train, family='binomial')
+  cvglm.GlaucomaM.model.predict <- predict(cvglm.GlaucomaM.model, test, type='response')
+  confidence <- (table("actual"=test$class, "predicted"=cvglm.GlaucomaM.model.predict>0.5))
+  error[k,] <- 1-diag(confidence)/nrow(test)
+}
+
+#Computing the error rate of the model
+Cross.Validation.Error <- mean(error)[1]
+cat("The Error rate for 10-fold Cross Validation is: ", Cross.Validation.Error)
+
+```
+
+    
+    c) Find a function (package in R) that can conduct the 
+    "adaboost" ensemble modeling. Use it to predict glaucoma 
+    and report error rate. Be sure to mention the package you used.
+
+
+
+```{r echo=FALSE}
+
+library(fastAdaboost)
+
+#Applying adaboost to the glm.step model formula
+GlaucomaM.adaboost <- adaboost(formula(glm.step), data=GlaucomaM.dat, nIter=100)
+
+#predicting adaboost model
+GlaucomaM.adaboost.predict <- predict(GlaucomaM.adaboost, newdata=GlaucomaM.dat)
+
+#returning the error rate of the model 
+cat("The Adaboost Error Rate :" , GlaucomaM.adaboost.predict$error)
+
+
+```
+
+
+
+    
+    d) Report the error rates based on single tree, bagging and random forest. 
+    (A table would be great for this).
+
+##rpart() tree plot
+
+
+```{r, fig.width=19, fig.height=10} 
+#Constructing a regressiong tree using rpart(). Since GlaucomaM.dat has been created using the 
+#variables that step() deemed valuable we can use the entire data set
+GlaucomaM.rpart <- rpart(class ~ ., 
+                  data=GlaucomaM.dat,
+                  control = rpart.control(minsplit = 10))
+
+#Ploting the rpart() model 
+plot(as.party(GlaucomaM.rpart),
+     to_args = list(id=FALSE))
+
+
+```
+
+##CP Table of rpart
+
+```{r echo=FALSE}
+
+GlaucomaM.rpart$cptable
+
+#grabing the node number containing the lowest xerror value from the original model bh_rpart
+low_xerror <- which.min(GlaucomaM.rpart$cptable[,'xerror'])
+
+#grabbing the number of splits with lowest xerror value from the cptable
+cat("The number of splits with the lowest xerror is : ", GlaucomaM.rpart$cptable[low_xerror, 'nsplit'])
+
+```
+
+##CP Plot of rpart
+
+```{r echo=FALSE}
+
+plotcp(GlaucomaM.rpart)
+
+```
+
+
+##Pruning tree with - Only 1 nodes
+
+Displaying the pruned model containing the loest xerror value 
+
+```{r, fig.width=11, fig.height=9} 
+#grabing the node number containing the lowest xerror value from the original model bh_rpart
+low_xerror <- which.min(GlaucomaM.rpart$cptable[,'xerror'])
+
+#grabbing the lowest CP value from the original model bh_rpart
+cp <- GlaucomaM.rpart$cptable[low_xerror, 'CP']
+
+
+#prunning the tree using the lowest CP value value from the original model 
+GlaucomaM.prune <- prune(GlaucomaM.rpart, cp = cp)
+
+#plotting the pruned tree
+plot(as.party(GlaucomaM.prune),
+     to_args = list(id=FALSE))
+
+#printing the pruned CP table
+GlaucomaM.prune$cptable
+
+GlaucomaM.prune.predict <- predict(GlaucomaM.prune, data=GluacomaM.dat)
+
+prune.error.rate <- mean((GlaucomaM.dat$class - GlaucomaM.prune.predict)^2)
+
+cat("The Pruned Model MSE is: ", prune.error.rate)
+
+```
+
+
+##Bagging with 50 trees - 10 Fold Cross Validation
+
+
+```{r echo=FALSE}
+library(boot)
+
+l <- length(GlaucomaM.dat)
+folds <- sample(rep(1:10, length.out=l))
+error <- matrix(NA, nrow=10, ncol=l)
+
+for (k in 1:10) {
+  testing.f <- which(folds == k)
+  testing <- GlaucomaM.dat[testing.f, ]
+  training <- GlaucomaM.dat[-testing.f, ]
+  
+  bagging <- vector(mode='list', length=50)
+  rows <- nrow(training)
+  bootsample.bagging <- rmultinom(length(bagging), rows, rep(1,rows)/rows)
+  GlaucomaM.bagging <- rpart(formula(glm.step), data=training, control=rpart.control(xval=0))
+  
+  for(i in 1:length(bagging)) {
+    bagging[[i]] <- update(GlaucomaM.bagging, weights=bootsample.bagging[,i])
+  }
+  GlaucomaM.bagging.predict <- predict(GlaucomaM.bagging, testing)
+  confidence.bagging <- (table("Actual"=testing$class, "Predicted"=GlaucomaM.bagging.predict>0.5))
+  error[k,] <- 1-((diag(confidence)/nrow(testing)))
+  error[k,] <- mean((testing$class - GlaucomaM.bagging.predict)^2)
+  
+}
+
+cat("The error rate for bagging with 50 trees using 10-fold Cross Validation is: ", mean(error))
+
+Bagging.50.Error <- mean(error)
+```
+
+##Random Forest Model - 10 Fold Cross Validation
+
+
+```{r echo=FALSE}
+
+#Random Forest Model
+GlaucomaM.rf <- randomForest(formula(glm.step), data=GlaucomaM.dat)
+GlaucomaM.rf.predict <- predict(GlaucomaM.rf, data=GlaucomaM.dat)
+
+
+folds <- sample(rep(1:10, length.out = l))
+error <- matrix(NA, nrow=10, ncol=l)
+
+for (k in 1:10) {
+  testing.f <- which(folds==k)
+  testing <- GlaucomaM.dat[testing.f,]
+  training <- GlaucomaM.dat[-testing.f,]
+  
+  GlaucomaM.rf <- randomForest(formula(glm.step), data=training)
+  GlaucomaM.rf.predict <- predict(GlaucomaM.rf, testing)
+  confidence <- (table("Actual"=testing$class, "Predicted"=GlaucomaM.rf.predict>0.5))
+  error[k,] <- 1-((diag(confidence)/nrow(testing)))
+  error[k,] <- mean((testing$class - GlaucomaM.rf.predict)^2)
+}
+
+Random.Forest.Error <- mean(error)
+cat("The Random Forest error rate with 10 fold cross validation is :", Random.Forest.Error)
+
+```
+
+##10 Fold Cross Validation on Tree Model
+
+
+```{r echo=FALSE}
+
+folds <- sample(rep(1:10, length.out = l))
+error <- matrix(NA, nrow=10, ncol=l)
+
+for (k in 1:10) {
+  testing.f <- which(folds==k)
+  testing <- GlaucomaM.dat[testing.f,]
+  training <- GlaucomaM.dat[-testing.f,]
+  
+  GlaucomaM.rpart <- rpart(formula(glm.step), data=training, control=rpart.control(minsplit=10))
+  xerror <- which.min(GlaucomaM.rpart$cptable[,'xerror'])
+  cp.value <- GlaucomaM.rpart$cptable[xerror, 'CP']
+  GlaucomaM.prune <- prune(GlaucomaM.rpart, cp=cp)
+  GlaucomaM.rpart.predict <- predict(GlaucomaM.rpart, testing)
+  confidence <- (table("Actual"=testing$class, "Predicted"=GlaucomaM.rpart.predict>0.5))
+  error[k,] <- 1-((diag(confidence)/nrow(testing)))
+}
+
+rpart.error <- mean(error)
+cat("The rpart error rate with 10 fold cross validation is :", rpart.error)
+
+```
+
+
+##Final Table of MSEs per Model
+
+```{r echo=FALSE}
+
+Random.Forest.Error.Rate <- Random.Forest.Error
+Bagging.50.Error.Rate <- Bagging.50.Error
+Adaboost.Error.Rate <- GlaucomaM.adaboost.predict$error
+Cross.Validation.K10.Error.Rate <- Cross.Validation.Error
+Rpart.Error.Rate <- rpart.error
+
+MSE_Table <- data.frame (
+Random.Forest.Error.Rate,
+  Bagging.50.Error.Rate,
+Adaboost.Error.Rate,
+Cross.Validation.K10.Error.Rate,
+Rpart.Error.Rate
+)
+
+transpose(MSE_Table)
+
+
+```
+
+    
+    e) Write a conclusion comparing the above results 
+    (use a table to report models and corresponding error rates). 
+    Which one is the best model?
+
+## Model Selection
+It appears that adaboost function has the lowest error rate which as at 0. This means that adaboost method predicted the class variable correctly at a 100%. The second best model is the Random Forest Model. It has an error rate at roughly 8.5%.  
+
+
+##Problem F
+
+    f) From the above analysis, which variables seem to be important in predicting Glaucoma?
+  
+
+Printing the summary of the glm.step model will reveal the most significant variables.
+
+```{r echo=FALSE}
+
+summary(glm.step)
+
+```    
+
+##Final Conclusion
+
+It appears that all the variables are significant however, phci & vars seem to be the most significant in predicting glaucoma.  Whereas phct and tms are slightly significant at 0.1 level for predicting glaucoma. 
+    

@@ -1,0 +1,251 @@
+---
+title: "Homework 11"
+output: pdf_document
+---
+
+##Kevin Kuipers (Completed byself)
+##November 11/13/2018
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=F,warning=F,echo=F,fig_height=10,fig_width=7,cache = F)
+```
+
+##Problem 1
+
+1. Consider \textbf{alpha} dataset from the \textbf{coin} package. Compare the results when using \textbf{glht}  and TukeyHSD (Refer to Chap 5 review for TukeyHSD). 
+
+
+
+```{r echo=FALSE}
+library(lme4)
+library(coin)
+library(multcomp)
+library(HSAUR3)
+library(sandwich)
+data(alpha)
+
+a <- data.frame (
+  length = abbreviate(alpha$alength),
+  level = alpha$elevel
+)
+
+
+
+``` 
+
+
+##General Linear Hypothesis & TukeyHSD
+
+using the aov() command I will fit two models and compare the glht to TukeyHSD. In both cases the formula will be expression levels are explained by allele length. 
+
+```{r, fig.width=12, fig.height=8}
+
+aov_model <- aov(level ~ length, data=a)
+alpha_glht <- glht(aov_model, linfct = mcp(length='Tukey'))
+alpha_tukey <- TukeyHSD(aov_model)
+
+``` 
+
+#Summary of General Linear Hypotheses
+
+
+```{r echo=FALSE}
+
+summary(alpha_glht)
+
+``` 
+
+#Summary of TukeyHSD
+
+
+```{r echo=FALSE}
+
+alpha_tukey
+
+``` 
+
+
+#Confidence Interval plots 
+The top plot will represent the 95% Family-wise confidence level of the general linear hypotheses and the bottom will represent the 95% Family-wise confidence level for the TukeyHSD
+
+```{r, fig.width=12, fig.height=9}
+
+layout(matrix(2:1, ncol=1))
+plot(alpha_tukey)
+plot(alpha_glht, main="95% Family-wise confidence level for General Linear Hypotheses")
+
+
+```
+
+
+
+```{r echo=FALSE}
+
+coef(alpha_glht)
+vcov(alpha_glht)
+
+
+``` 
+
+##Problem 2 
+
+2. Consider \textbf{clouds} data from \textbf{HSAUR3} package
+
+
+##Problem 2 A)
+
+
+    a. Read and write a report (no longer than one page) 
+    on the clouds data given in Chapter 15 section 15.3.3 from Handbook Ed 3.
+
+
+```{r echo=FALSE}
+
+data(clouds)
+?clouds
+
+``` 
+
+The clouds data is an interesting study on weather modification. The study conducted focuses on clouds or storm systems and how they interact with inorganic or organic materials.  Through this process the study is looking at if certain factors increase rainfall. The experiment  took place in 1975 and explored whether or not silver iodide 100 to 1000 grams per cloud in cloud seeding increased rainfall. The time frame for the study was 24 days and was based on a measurement called SNE (suitability criterion) to see if the iodide caused an increase in the railfall.
+
+During the experiment several variables were recorded: seeding, time, SNE, cloudcover, prewetness, echomotion, ad rainfall. 
+
+Seeding: is a categorical variable. Yes if seeding action occured and no otherwise
+
+Time: is the number of days after the first day of the experiment
+
+SNE: is the suitability criterion 
+
+cloudclover: was measured using radar and tracked the percentage of cloud cover in the experimental area
+
+prewetness: is the total ranfall for the target area one hur before seeding and measured in cubic meters times 1e+8
+
+echomotion: is a categorical variable documenting the radar echo as moving or stationary
+
+rainfall: is the amount of rain in cubic meters times 1e+8
+
+It has been noted that the rainfall and SNE values have a dependency.  So lets look at some graphs. There will be to scatterplots one of no seeding and one with seeding with rainfall explained by SNE values.  The graphs will contain a best fit linear line with confidence interval bands.  The code comes from A handbook of statistical analyses using R, 3rd Edition on Page 294.
+
+
+
+```{r, fig.width=12, fig.height=7}
+
+confband <- function(subset, main) {
+  mod <- lm(rainfall ~ sne, data=clouds, subset=subset)
+  sne_grid <- seq(from = 1.5, to = 4.5, by = 0.25)
+  K <- cbind(1, sne_grid)
+  sne_ci <- confint(glht(mod, linfct = K))
+  plot(rainfall ~ sne, data=clouds, subset = subset,
+       xlab='S-Ne criterion', main=main,
+       xlim=range(clouds$sne),
+       ylim=range(clouds$rainfall))
+  abline(mod)
+  lines(sne_grid, sne_ci$confint[,2], lty=2)
+  lines(sne_grid, sne_ci$confint[,3], lyt=2)
+}
+
+layout(matrix(1:2, ncol=2))
+confband(clouds$seeding=='no', main='No Seeding')
+confband(clouds$seeding=='yes', main='Seeding')
+
+
+```     
+
+
+It appears that no seeding category has weaker relationship between rainfall and SNE values. In contrast, the seeding seems to have a stronger relationship between the rainfall being explained by the SNE values. The confidence bands are helpful because they can be used to help pinpoint where the greatest certainty and uncertainty lie for rainfall.  For example, in the seeding graph the greatest  uncertainty about rainfall is when the SNE vaues are very low. But right around 3.2 SNE values that is where the confidence is smallest and thus producing the greatest amount of certainty for explaing rainfall.  But then as SNE values increase the uncertainty also increases which means the there is a much wider range for the confidence interavls for explanining rainfall. 
+
+
+
+##Problem 2 B)
+    
+    b. Consider the linear model fitted to the clouds data 
+    as summarised in Chapter 6, Figure 6.5. Set up a matrix K 
+    corresponding to the global null hypothesis that all interaction 
+    terms present in the model are zero. 
+    Test both the global hypothesis and all hypotheses corresponding 
+    to each of the interaction terms. 
+    
+
+#Linear Model
+
+I will fit the linear model found in A Handbook of statistical analyses using R 3rd Edition page 110. It will be rainfall is explained by seeding and seeding interactions with SNE, cloudcover, prewetness and echomotion. And it will also have time. 
+
+```{r echo=FALSE}
+
+clouds_formula <- rainfall ~ seeding + seeding:(sne + cloudcover + prewetness + echomotion) + time
+
+clouds_lm <- lm(clouds_formula, data=clouds)
+summary(clouds_lm)
+
+
+```     
+
+#General Linear Hypotheses
+
+Now I will fit the model using the general linear hypotheses method with the same formula as the linear regression model. This model will also use K matrix with interaction terms at zero.
+
+```{r echo=FALSE}
+#creating the K matrix and grabing value names
+K <- cbind(0, diag(length(coef(clouds_lm)) - 1))
+rownames(K) <- names(coef(clouds_lm))[-1]
+
+#fitting the aov model
+clouds_aov <- aov(clouds_formula, data=clouds)
+#fitting the glht model with K matrix
+clouds_glht <- glht(clouds_aov, linfct=K)
+#printing summary 
+summary(clouds_glht)
+
+``` 
+
+##Problem 2 C)    
+
+    c. How does adjustment for multiple testing change which interactions are significant?
+
+
+It appears the general linear hypotheses tends to diminish the significance on the values. For example, the seedingyes:sne interaction tends to have a lower p value than the regular linear regression model. In addition, the seedingno:cloudcover was slightly significant in the regular linear model but the general linear hypotheses method does not find any significance for this interaction. 
+    
+    
+
+##Problem 3)
+
+3. For the logistic regression model presented in Chapter 7 in Figure 7.7, perform a multiplicity adjusted test on all regression coefficients (except for the intercept) being zero. Do the conclusions drawn in Chapter 7 remain valid?
+
+
+#GLM Model Summary
+
+I will fit the glm model of womens role found in the Handbook of Statistical Analeyes using R on page 133. The summary will be outputted
+
+```{r echo=FALSE}
+
+#Loading Data
+data(womensrole)
+#Regular glm method 
+fm2 <- cbind(agree,disagree) ~ gender*education
+womensrole_glm_2 <- glm(fm2, data=womensrole, family=binomial())
+summary(womensrole_glm_2)
+
+
+
+``` 
+
+
+#General Linear Hypotheses
+
+
+```{r echo=FALSE}
+
+#glht approach 
+K <- cbind(0, diag(length(coef(womensrole_glm_2))-1))
+rownames(K) <- names(coef(womensrole_glm_2))[-1]
+
+womensrole_glht <- glht(womensrole_glm_2, linfct=K)
+#printing summary 
+summary(womensrole_glht)
+
+
+``` 
+
+#Discussion
+When looking at the summary glm approach and the glht approach the same conclusions can be drawn--even if the intercept is 0 for the glht approach. The only difference between the models is that the p values for the variables are still significant in the general linear hypotheses but not as significant as the regular glm method. The estimates, standard errors, and z-values are the same between both approaches.  Therefore, the same conclusion found in the glm approach and be applied the glht approach. 

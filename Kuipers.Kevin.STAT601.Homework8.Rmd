@@ -1,0 +1,639 @@
+---
+title: "Homework 8"
+author: "STAT 601"
+output:
+  html_document:
+    df_print: paged
+---
+
+##Kevin Kuipers (Completed byself)
+##10/16/2018
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=F,warning=F,echo=T,fig_height=10,fig_width=7,cache = F)
+```
+
+
+##Problem 1 
+
+1. Consider the {\textbf{clouds}} data from the {\textbf{HSAUR3}} package
+
+
+```{r echo=TRUE}
+
+set.seed(seed = 929270)
+
+library(HSAUR3)
+data(clouds)
+
+```  
+
+
+##Problem 1 A)
+
+
+    a) Review the linear model fitted to this data in Chapter 6 of 
+    the text book and report the model and findings. 
+
+#Summary of Model
+
+I will follow the same coding lines found in chapter 6.  Just like the text I will create the formula, fit the model, and output the summary of the linear regression model. 
+
+```{r echo=TRUE}
+
+#The formula for the clouds linear model fittd in chapter 6 of the textbook however the variable names are little different than the book but represent the same data
+clouds_formula <- rainfall ~ seeding + seeding:(sne + cloudcover + prewetness + echomotion) + time
+
+#Fitting the model
+clouds_lm <- lm(clouds_formula, data=clouds)
+
+#Printining summary of the model
+summary(clouds_lm)
+
+
+```  
+
+
+From the summary of the model it appears that there are several variables that are are significant.  Seedingyes is the contains the highest significance. seedingyes:sne is the next highest significance in 
+
+#Plot of the Model - Rainfall explained by Suitability Criterion (SNE)
+
+There will be two linear regression models plotted with rainfall explained by Suitability Criterion (SNE). The first one will be the same code outlined from Chapter 6 in the textbook.  The second will a ggplot() with color coating for seeding. Linear regression lines will be applied to if seeding occured or not. 
+
+```{r echo=TRUE}
+
+psymb <- as.numeric(clouds$seeding)
+plot(rainfall ~ sne, data=clouds, pch = psymb,
+     xlab='S-NE Criterion', ylab="Rainfall", main = "Rainfall Explained by Suitability Criterion")
+abline(lm(rainfall ~ sne, data=clouds,
+          subset=seeding=='no'))
+abline(lm(rainfall~ sne, data=clouds,
+          subset=seeding=='yes'), lty=2)
+legend('topright', legend = c('No seeding', 'Seeding'),
+       pch = 1:2, lty = 1:2, bty = 'n')
+
+library(tidyverse)
+ggplot(data=clouds, aes(x=sne, y=rainfall, col=seeding)) + geom_point() + geom_smooth(method='lm') + labs(title='Rainfall Explained by Suitability Criterion',x='S-NE Criterion', y='Rainfall')
+
+
+```  
+
+##Problem 1 B)
+      
+    b) Fit a median regression model. 
+
+#Plots of the model
+
+I will fit the model based on seeding and compare the median model to the normal linear regression model. This will rainfall is explained by S-NE (Suitability Criterion).  There will be four plots.  Linear regression vs median regression using plot() command and linear regression vs median regression using ggplot
+
+
+```{r, fig.width=12, fig.height=6}
+
+library(quantreg)
+
+#Plotting median and linear regression models with plot() command
+layout(matrix(1:2,ncol=2))
+plot(rainfall ~ sne, data=clouds, pch = psymb,
+     xlab='S-NE Criterion', ylab="Rainfall", main = "Median Regression: Rainfall Explained by SNE")
+abline(rq(rainfall ~ sne, data=clouds, tau=0.50,
+          subset=seeding=='no'))
+abline(rq(rainfall ~ sne, data=clouds, tau=0.50,
+          subset=seeding=='yes'), lty=2)
+legend('topright', legend = c('No seeding', 'Seeding'),
+       pch = 1:2, lty = 1:2, bty = 'n')
+psymb <- as.numeric(clouds$seeding)
+plot(rainfall ~ sne, data=clouds, pch = psymb,
+     xlab='S-NE Criterion', ylab="Rainfall", main = "Linear Regression: Rainfall Explained by SNE")
+abline(lm(rainfall ~ sne, data=clouds,
+          subset=seeding=='no'))
+abline(lm(rainfall~ sne, data=clouds,
+          subset=seeding=='yes'), lty=2)
+legend('topright', legend = c('No seeding', 'Seeding'),
+       pch = 1:2, lty = 1:2, bty = 'n')
+
+```  
+
+
+```{r, fig.width=9, fig.height=4}
+
+#Ploting median and linear regression models with ggplot() command
+
+library(tidyverse)
+library(gridExtra)
+
+clouds_gglinear <- ggplot(data=clouds, aes(x=sne, y=rainfall, col=seeding)) + geom_point() + geom_smooth(method='lm',se=FALSE) + labs(title='Linear Regression: Rainfall Explained by SNE',x='S-NE Criterion', y='Rainfall')
+
+
+clouds_ggmedian <- ggplot(data=clouds, aes(x=sne, y=rainfall, col=seeding)) + geom_point()  + labs(title='Median Regression: Rainfall Explained by SNE',x='S-NE Criterion', y='Rainfall') + stat_quantile(quantiles=c(0.50), method='rq')
+
+grid.arrange(clouds_gglinear, clouds_ggmedian, ncol=2)
+
+
+```  
+
+
+
+#Median Regression Summary of Model
+
+
+```{r echo=TRUE}
+
+#Median Regression Model. 
+clouds_medianreg <- rq(rainfall ~ sne, data=clouds, tau=0.50)
+summary(clouds_medianreg)
+
+``` 
+
+
+
+#Linear Regression Summary of Model
+
+
+```{r echo=TRUE}
+
+clouds_lm2 <- lm(rainfall ~ sne, data=clouds)
+summary(clouds_lm2)
+
+```  
+
+##Problem 1 C)
+
+    c) Compare the two results. 
+    
+##Discussion
+I believe the graphs reveal the best information when pertaining to a linear regression fit vs median regression fit.  As what we would expect the median regression it cutting the data in half. So when seeding has not occured the linear regression model records a negative slope whereas the median regression cuts the data in half and thus has a postive slope. When seeding does occur the median and linear regression models are fairly close together with similar negative slopes. The linear model is alittle steeper in slope than than the median regression model when seeding has occured. As mentioned in the lectures the linear regression model is going to model around the average value and is affected more affected by outliers as it determines the sum of least squares. In contrast, the median model is not concerned with the average value of the data set but is rather concerned with the middle value of the data set. Similarly with the db data we were concerned with percentiles of the data to see where the head circumference was in regards to percentiles of the population.  I believe in this case, the median regression model is a better fit. The data points are not close together at all and thus contains high variability. Thus median regression is not as strongly affected by the outliers. 
+
+
+
+##Problem 2)
+
+2. Reanalyze the {\textbf{bodyfat}} data from the {\textbf{TH.data}} package. 
+
+
+```{r echo=TRUE}
+
+library(TH.data)
+data(bodyfat)
+
+
+```  
+
+##Problem 2 A)
+
+    a) Compare the regression tree approach from chapter 9 of 
+    the textbook to median regression and summarize the different findings.
+    
+
+Fitting the model to a regression tree model using rpart command for explaining DEXfat by age, waistcirc, hipcirc, elbowbreadth, and kneebreadth. Two plots will be produced of the regression tree model one using the partykit library and the other using the ggplot command from the ggdendro library 
+
+
+```{r, fig.width=13, fig.height=10}
+set.seed(seed = 929270)
+
+#Fitting regressing tree model 
+library(rpart)
+bodyfat_rpart <- rpart(DEXfat ~ age + waistcirc + hipcirc + elbowbreadth + kneebreadth, data=bodyfat, control=rpart.control(minsplit=10))
+
+
+#plot() of the regression tree model
+library(partykit)
+plot(as.party(bodyfat_rpart), tp_args = list(id=FALSE))
+
+#ggplot of the regression tree model 
+library(ggdendro)
+ggdendrogram(bodyfat_rpart, segments=TRUE, labels=TRUE, leaf_labels=TRUE, rotate=FALSE, theme_dendro=TRUE) 
+
+```  
+
+#CP Table
+
+```{r echo=TRUE}
+#Printing the CP Table
+print(bodyfat_rpart$cptable)
+
+``` 
+
+#CP value with the lowest xerror value
+
+```{r echo=TRUE}
+
+opt <- which.min(bodyfat_rpart$cptable[,'xerror'])
+which.min(bodyfat_rpart$cptable[,'xerror'])
+
+```  
+
+#Plot of CP Table
+
+I first plot the CP vs xerror values from the cptable using the plotcp() command. In order to ggplot the values from the table need to be put into a data frame. 
+
+```{r echo=TRUE}
+#Ploting the CP Table using plotcp() command
+plotcp(bodyfat_rpart)
+
+#Plotting the CP table using ggplot
+
+#CP values from the cp table of the model
+gcp <- bodyfat_rpart$cptable[,1]
+
+gseq <- seq(from=1, to=7)
+
+#Xerror values from the cp table of the model
+gxerror <- bodyfat_rpart$cptable[,4]
+
+#Creating a data frame from the two vectors above: CP values and Xerror values
+gcp.table <- data.frame (
+  gseq,
+  gcp,
+  gxerror
+)
+#Plotting the CP table using ggplot
+ggplot(data=gcp.table, aes(x=gcp, y=gxerror)) + geom_point(data=gcp.table, aes(x=gseq), col='red') + scale_x_discrete( limits=c("1",'2','3','4','5','6','7','8','9')) + geom_line(data=gcp.table, aes(x=gseq), col='blue') + labs(title="CP Table Plot: CP vs Xerror", x="CP", y="Xerror")
+
+
+``` 
+
+
+#Pruning Tree Model
+
+Now I will fit the model using the cp value with the lowest xerror rate like in the text book. 
+
+```{r, fig.width=13, fig.height=10}
+#Grabbing the lowest
+cp <- bodyfat_rpart$cptable[opt, 'CP']
+bodyfat_prune <- prune(bodyfat_rpart, cp=cp)
+
+#plot() of the regression tree model
+library(partykit)
+plot(as.party(bodyfat_prune), tp_args = list(id=FALSE))
+
+#ggplot of the regression tree model 
+library(ggdendro)
+ggdendrogram(bodyfat_prune, segments=TRUE, labels=TRUE, leaf_labels=TRUE, rotate=FALSE, theme_dendro=TRUE) 
+
+```  
+
+#Fitting data to median regression Model
+
+I will fit a median regression model with the same variables from the random forest model.I will then output the MSE of both the median regression model and the random forest model. 
+
+
+```{r echo=TRUE}
+
+#Median Regression model
+bodyfat_median <- rq(DEXfat ~ age + waistcirc + hipcirc + elbowbreadth + kneebreadth, data=bodyfat, tau = 0.50)
+
+#summary of the median regression model
+bodyfat_median_summary <- summary(bodyfat_median) 
+
+
+#predict of the random forest model on the bodyfat data set
+bodyfat_rf_predict <- predict(bodyfat_prune, data=bodyfat)
+
+#creating data frame of the observed value and the predicted value
+observed <- bodyfat$DEXfat
+predict <- bodyfat_rf_predict
+
+bh_rf_df <- data.frame(
+  observed,
+  predict
+)
+
+#Random Forest Pruned MSE
+Random.Forest.Prune.MSE <- mean((observed - predict)^2)
+
+#Median Regression MSE
+Median.Regression.MSE <- mean(bodyfat_median_summary$residuals^2)
+
+MSE_df <- data.frame(
+  Random.Forest.Prune.MSE,
+  Median.Regression.MSE
+)
+
+#Outputting the MSE for both both models
+MSE_df
+
+```  
+
+It appears the random forest model that has been pruned has a lower MSE than the median regression model. 
+
+
+##Problem 2 B)
+
+    b) Choose one dependent variable. 
+    For the relationship between this variable and DEXfat, 
+    create linear regression models for the 25%, 50% and 75% quantiles. 
+    Plot DEXfat vs that dependent variable and plot the lines 
+    from the models on the graph. 
+
+I will run a quick linear regression model on all the previous used variables, meaning I will use the lm() command with DEXfat explained by age, waistcirc, hipcirc, elbowbreadth, and kneebreadth and look at the summary of the model to see which variable is the most significant.
+
+```{r echo=TRUE}
+bodyfat_lm <- lm(data=bodyfat, DEXfat ~ age + waistcirc + hipcirc + elbowbreadth + kneebreadth)
+
+summary(bodyfat_lm)
+
+```  
+
+It appears that waistcirc is the most significant in a linear regression model. Therefore, I will look at DEXfat ~ waistcirc for the quantile regression models.
+
+#Fitting and plotting the models
+
+I will fit each individual model according the quantile regressions. One at 25%, one at 50% (median), and the third one at 75%. I will then plot them using the plot() command and the ggplot
+
+```{r echo=TRUE}
+bodyfat_25 <- rq(DEXfat ~ age + waistcirc, data=bodyfat, tau = 0.25)
+
+bodyfat_50 <- rq(DEXfat ~ age + waistcirc, data=bodyfat, tau = 0.50)
+
+bodyfat_75 <- rq(DEXfat ~ age + waistcirc, data=bodyfat, tau = 0.75)
+
+#plot() command of DEXfat Explained by waist circumference using 25%, 50%, and 75% quantile regression lines 
+plot(data=bodyfat, DEXfat~waistcirc, main="Bodyfat Quantile Regression: DEXfat Vs Waist Circumference", xlab='Waist Circumference')
+abline(rq(DEXfat ~ waistcirc, data=bodyfat, tau = 0.25), col='red')
+abline(rq(DEXfat ~ waistcirc, data=bodyfat, tau = 0.50), col='green')
+abline(rq(DEXfat ~ waistcirc, data=bodyfat, tau = 0.75), col='blue')
+legend('topleft', legend = c('25% Quantile', '50% Quantile', '75% Quantile'),
+       fill=c('red','green','blue'))
+
+
+
+#ggplot() command of DEXfat Explained by waist circumference using 25%, 50%, and 75% quantile regression lines 
+ggplot(data=bodyfat, aes(x=waistcirc, y=DEXfat)) + geom_point() + stat_quantile(quantiles=c(0.25), method='rq', aes(colour='25%')) + stat_quantile(quantiles=c(0.50), method='rq', aes(colour='50%')) + 
+  stat_quantile(quantiles=c(0.75), method='rq', aes(colour='75%')) +
+  labs(title="Bodyfat Quantile Regression: DEXfat Vs Waist Circumference", x='Waist Circumference', y='DEXfat') +
+scale_color_manual(name="Quantile Percent", values = c('25%' = "red", '50%' = "green", '75%' = "blue"))
+
+
+
+``` 
+
+
+##Problem 3
+    
+3. Consider {\textbf{db}} data from the lecture notes (package {\textbf{gamlss.data}}). Refit the additive quantile regression models presented ({\textbf{rqssmod}}) with varying values of $\lambda$ (lambda) in {\textbf{qss}}. How do the estimated quantile curves change?
+
+#Lambda 100
+
+```{r, fig.width=7, fig.height=5}
+library(gamlss.data)
+library(lattice)
+data(db)
+db2 <- db
+tau <- c(.03, .15, .5, .85, .97)
+
+rqssmod <- vector(mode = "list", length = length(tau))
+db2$lage <- with(db2, age^(1/3))
+for (i in 1:length(tau))
+  rqssmod[[i]] <- rqss(head ~ qss(lage, lambda =100),
+                       data = db2, tau = tau[i])
+
+gage <- seq(from = min(db2$age), to = max(db2$age), length = 50)
+p <- sapply(1:length(tau), function(i) { predict(rqssmod[[i]],
+                                                 newdata = data.frame(lage = gage^(1/3)))
+})
+
+## Playing with the whole db data 
+pfun <- function(x, y, ...) {
+  panel.xyplot(x = x, y = y, ...)
+  apply(p, 2, function(x) panel.lines(gage, x))
+  panel.text(rep(max(db2$age), length(tau)),
+             p[nrow(p),], label = tau, cex = 0.9)
+  #panel.text(rep(min(db2$age), length(tau)),
+  #p[1,], label = tau, cex = 0.9)
+}
+xyplot(head ~ age, data = db2, xlab = "Age (years)",
+       ylab = "Head circumference (cm)", pch = 19,
+       scales = list(x = list(relation = "free")),
+       layout = c(1, 1), col = rgb(.1, .1, .1, .1),
+       panel = pfun,
+       main = 'When lambda = 100')
+
+```  
+
+
+##Lambda 25
+
+```{r echo=TRUE}
+data(db)
+db2 <- db
+tau <- c(.03, .15, .5, .85, .97)
+
+rqssmod <- vector(mode = "list", length = length(tau))
+db2$lage <- with(db2, age^(1/3))
+for (i in 1:length(tau))
+  rqssmod[[i]] <- rqss(head ~ qss(lage, lambda =25),
+                       data = db2, tau = tau[i])
+
+gage <- seq(from = min(db2$age), to = max(db2$age), length = 50)
+p <- sapply(1:length(tau), function(i) { predict(rqssmod[[i]],
+                                                 newdata = data.frame(lage = gage^(1/3)))
+})
+
+## Playing with the whole db data 
+pfun <- function(x, y, ...) {
+  panel.xyplot(x = x, y = y, ...)
+  apply(p, 2, function(x) panel.lines(gage, x))
+  panel.text(rep(max(db2$age), length(tau)),
+             p[nrow(p),], label = tau, cex = 0.9)
+  #panel.text(rep(min(db2$age), length(tau)),
+  #p[1,], label = tau, cex = 0.9)
+}
+xyplot(head ~ age, data = db2, xlab = "Age (years)",
+       ylab = "Head circumference (cm)", pch = 19,
+       scales = list(x = list(relation = "free")),
+       layout = c(1, 1), col = rgb(.1, .1, .1, .1),
+       panel = pfun,
+       main = 'When lambda = 25')
+
+
+```  
+
+
+#Lambda 15
+
+
+```{r echo=TRUE}
+
+data(db)
+db2 <- db
+tau <- c(.03, .15, .5, .85, .97)
+
+rqssmod <- vector(mode = "list", length = length(tau))
+db2$lage <- with(db2, age^(1/3))
+for (i in 1:length(tau))
+  rqssmod[[i]] <- rqss(head ~ qss(lage, lambda =15),
+                       data = db2, tau = tau[i])
+
+gage <- seq(from = min(db2$age), to = max(db2$age), length = 50)
+p <- sapply(1:length(tau), function(i) { predict(rqssmod[[i]],
+                                                 newdata = data.frame(lage = gage^(1/3)))
+})
+
+## Playing with the whole db data 
+pfun <- function(x, y, ...) {
+  panel.xyplot(x = x, y = y, ...)
+  apply(p, 2, function(x) panel.lines(gage, x))
+  panel.text(rep(max(db2$age), length(tau)),
+             p[nrow(p),], label = tau, cex = 0.9)
+  #panel.text(rep(min(db2$age), length(tau)),
+  #p[1,], label = tau, cex = 0.9)
+}
+xyplot(head ~ age, data = db2, xlab = "Age (years)",
+       ylab = "Head circumference (cm)", pch = 19,
+       scales = list(x = list(relation = "free")),
+       layout = c(1, 1), col = rgb(.1, .1, .1, .1),
+       panel = pfun,
+       main = 'When lambda = 15')
+
+
+```  
+
+
+#Lambda 5
+
+```{r echo=TRUE}
+data(db)
+db2 <- db
+tau <- c(.03, .15, .5, .85, .97)
+
+rqssmod <- vector(mode = "list", length = length(tau))
+db2$lage <- with(db2, age^(1/3))
+for (i in 1:length(tau))
+  rqssmod[[i]] <- rqss(head ~ qss(lage, lambda =5),
+                       data = db2, tau = tau[i])
+
+gage <- seq(from = min(db2$age), to = max(db2$age), length = 50)
+p <- sapply(1:length(tau), function(i) { predict(rqssmod[[i]],
+                                                 newdata = data.frame(lage = gage^(1/3)))
+})
+
+## Playing with the whole db data 
+pfun <- function(x, y, ...) {
+  panel.xyplot(x = x, y = y, ...)
+  apply(p, 2, function(x) panel.lines(gage, x))
+  panel.text(rep(max(db2$age), length(tau)),
+             p[nrow(p),], label = tau, cex = 0.9)
+  #panel.text(rep(min(db2$age), length(tau)),
+  #p[1,], label = tau, cex = 0.9)
+}
+xyplot(head ~ age, data = db2, xlab = "Age (years)",
+       ylab = "Head circumference (cm)", pch = 19,
+       scales = list(x = list(relation = "free")),
+       layout = c(1, 1), col = rgb(.1, .1, .1, .1),
+       panel = pfun,
+       main = 'When lambda = 5')
+
+
+```  
+
+
+#Lambda 1
+
+```{r echo=TRUE}
+data(db)
+db2 <- db
+tau <- c(.03, .15, .5, .85, .97)
+
+rqssmod <- vector(mode = "list", length = length(tau))
+db2$lage <- with(db2, age^(1/3))
+for (i in 1:length(tau))
+  rqssmod[[i]] <- rqss(head ~ qss(lage, lambda =1),
+                       data = db2, tau = tau[i])
+
+gage <- seq(from = min(db2$age), to = max(db2$age), length = 50)
+p <- sapply(1:length(tau), function(i) { predict(rqssmod[[i]],
+                                                 newdata = data.frame(lage = gage^(1/3)))
+})
+
+## Playing with the whole db data 
+pfun <- function(x, y, ...) {
+  panel.xyplot(x = x, y = y, ...)
+  apply(p, 2, function(x) panel.lines(gage, x))
+  panel.text(rep(max(db2$age), length(tau)),
+             p[nrow(p),], label = tau, cex = 0.9)
+  #panel.text(rep(min(db2$age), length(tau)),
+  #p[1,], label = tau, cex = 0.9)
+}
+xyplot(head ~ age, data = db2, xlab = "Age (years)",
+       ylab = "Head circumference (cm)", pch = 19,
+       scales = list(x = list(relation = "free")),
+       layout = c(1, 1), col = rgb(.1, .1, .1, .1),
+       panel = pfun,
+       main = 'When lambda = 1')
+
+
+```  
+
+
+
+#lambda 0
+
+```{r echo=TRUE}
+data(db)
+db2 <- db
+tau <- c(.03, .15, .5, .85, .97)
+
+rqssmod <- vector(mode = "list", length = length(tau))
+db2$lage <- with(db2, age^(1/3))
+for (i in 1:length(tau))
+  rqssmod[[i]] <- rqss(head ~ qss(lage, lambda =0),
+                       data = db2, tau = tau[i])
+
+gage <- seq(from = min(db2$age), to = max(db2$age), length = 50)
+p <- sapply(1:length(tau), function(i) { predict(rqssmod[[i]],
+                                                 newdata = data.frame(lage = gage^(1/3)))
+})
+
+## Playing with the whole db data 
+pfun <- function(x, y, ...) {
+  panel.xyplot(x = x, y = y, ...)
+  apply(p, 2, function(x) panel.lines(gage, x))
+  panel.text(rep(max(db2$age), length(tau)),
+             p[nrow(p),], label = tau, cex = 0.9)
+  #panel.text(rep(min(db2$age), length(tau)),
+  #p[1,], label = tau, cex = 0.9)
+}
+xyplot(head ~ age, data = db2, xlab = "Age (years)",
+       ylab = "Head circumference (cm)", pch = 19,
+       scales = list(x = list(relation = "free")),
+       layout = c(1, 1), col = rgb(.1, .1, .1, .1),
+       panel = pfun,
+       main = 'When lambda = 0')
+
+
+```  
+
+##Problem 3 Discussion:
+
+It appears that as lambda increases the precentile regressions tend to smooth out and fit a more generalized data set. When lambda decreases the quantile regression lines tend to bend more. When lambda = 0 the lines become very choppy and causing the quantile regression lines to way over fit the data and thus not a good estimate of the data.  
+
+
+
+##Problem 4
+
+4. Read the paper by Koenker and Hallock (2001), posted on D2L. Write a one page summary of the paper. This should include but not be limited to introduction, motivation, case study considered and findings. 
+
+
+#Summary
+  The Koenker and Hallock (2001) research paper focuses on several different data sets for looking at two different types of models to summarize data.  The models they discuss in their research are linear regression and quantile regression.  Koenker and Hallock achknowledge the usefulness of linear regression but their main determination is show the utility of quantile regression and explain when quantile regression is the better type of model for data modeling. They do this by looking at several different kinds of data sets like households' food expenditure on household income and Infant Birthweight.
+  
+  
+  The motivation for looking at these data sets is to show and explain that quantile regression has more usefulness than linear regression in some cases. First, When the dependent variables and the covariates have a unique dispirsion relationship like tails in the continuous variables. This may resemble a relatioship where as the values increase the relatioship becomes more difficult to explain by using the mean value. Linear regression focues around the mean value and the absolute residuals and reducing the error.  Whereas quantile regression tends to focus on the median of the data and splitting it into evenly spaced quantiles. 
+ 
+ 
+  Koenker and Hallock introduce their topic by explaining how we determine what percentile a student falls given an ACT score within the population. For example, one can either do better than 50% of the population or worse than 50% of the population. This is where the utilitily of quantile regression is more useful than linear regression. 
+  
+  
+  The data set they explore the most to convery their motivation is on the infant weight data set. In exploring this data set the orientation of the data supports more of quantile regression model where it is more concerned with the median rather than the average due to the dispersion of the of the relationship between the variables. In addition, they are concerned where the infant weight falls on the percentile charts. Outliers of the data will throw off the linear regression model. 
+  
+  
+  Some of the covariates they looked at for explaining the infants birth weight were education (less than highschool, high school, some college, and college graduate), they also looked at the prenatal medical care (those with no prenatal visit, those whose ???rst prenatal visit was in the ???rst trimester of the pregnancy, those with ???rst visit in the second trimester and those with ???rst visit in the last trimester) and other demographics. 
+  
+  In their findings, the linear regression model showed that the boys were usually larger than the girls by 100g.  However, the quantile regression model shifts the results where boys were roughly only 45g larger than the girls. The variables that seemed to help explain a given infant's birthweight were prenatal care, mother age, marital status, education beyond highschool, and smooking. 
+  
+  
+  Utimately, when working with the datasets we need determine our concern; are we concerned with percentiles and the median value? Or are we concerned with the average values and minizing the errors between the residuals. I often think of medical visit for BMI. Based on my age and height where do I fall? Do I fall in the 50th percentile? 
+   
+   
+   I also think of income distribution. We can focus on the average income per person in the U.S by age. We know that this has a skewed distribution or some kind of tail. There are some people who have salaries way far above the average, thus Quantile regression can better reflect the data since it is not as easily affected by outlies. 
+

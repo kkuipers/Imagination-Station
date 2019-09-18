@@ -1,0 +1,722 @@
+---
+title: "Homework 3 - STAT 601"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+#Kevin Kuipers (Completed byself)
+
+#September 11, 2018
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=F,warning=F,echo=F,fig_height=10,fig_width=7,cache = F)
+```
+
+
+##Problem 1. 
+Use the \textbf{bladdercancer} data from the \textbf{HSAUR3} library to answer the following questions
+
+```{r echo=FALSE}
+#Loading the data set and libraries
+library(HSAUR3)
+data(bladdercancer)
+
+```
+##Problem 1 Part A)
+
+    a) Construct graphical and numerical summaries that will show the relationship between 
+    tumor size and the number of recurrent tumors. Discuss your discovery. 
+    (Hint: mosaic plot may be a great way to assess this)
+
+
+##My Assumption:
+
+When starting out with any data set I generally look at the most simplest model first to see how it performs on the data. I believe Number of Tumors will be best predicted by one variable. 
+
+I will create a data frame from data set and load the needed libraries. After that a mosaic plot will be created. In addition, the data will be split into two data sets to look at histograms for each category (>3cm vs <=3cm). These plots will be produced in both base R-plots and ggplots. The ggplots can be alitle more sophisticated, so while the base R has two histograms one for each category, ggplot can overlay the histograms on 1 plot by producing different colors. Even though both styles are alittle different they display the same results.  In addition, the mosaic plots between the two functions display the same results just flipped between >3cm vs <=3cm. 
+
+```{r echo=FALSE}
+#install.packages('vcd')
+#install.packages('devtools')
+library(vcd)
+
+library(tidyverse)
+library(devtools)
+
+TumorSize <- bladdercancer$tumorsize
+NumberOfTumors <- bladdercancer$number
+Time <- bladdercancer$time
+TumorSize1 <- ifelse(bladdercancer$tumorsize==">3cm", 1, 0)
+
+bladdercancer_dat <- data.frame (
+  TumorSize,
+  NumberOfTumors,
+  Time,
+  TumorSize1
+  
+  
+)
+
+#Subsetting the data based on the category of the tumorsize for histogram purposes
+bladdercancerg3 <- subset(bladdercancer_dat, bladdercancer_dat$TumorSize==">3cm")
+bladdercancerl3 <- subset(bladdercancer_dat, bladdercancer_dat$TumorSize=="<=3cm")
+
+#install.packages('ggmosaic')
+library(ggmosaic)
+
+#Displaying and constructing a mosaic plot comparing number of tumors vs. tumor size
+mosaicplot( xtabs (~NumberOfTumors + TumorSize, data=bladdercancer), main="Mosaic Plot of Bladder Cancer patients: Number of Tumors & Size", ylab='Tumor Size (cm)', xlab='Number Of Tumors', color=TRUE, las=1)
+
+#Displaying and constructing a mosaic plot comparing number of tumors vs. tumor size using ggplot
+ggplot(data=bladdercancer_dat) + 
+  geom_mosaic(aes(weight = NumberOfTumors, x=product(TumorSize, NumberOfTumors), fill=factor(TumorSize))) +
+  labs(x='Number Of Tumors', y='Tumor Size in (cm)', title='Mosaic Plot of Bladder Cancer patients: Number of Tumors & Size') +
+  guides(fill=guide_legend(title="Tumor Size (cm)",reverse=TRUE))
+
+#Creating histograms to look at the data between >3 cm and <=3 cm
+par(mfrow=c(1,2))
+hist(bladdercancerl3$NumberOfTumors, main = "No. Tumors <= 3cm", xlab="Number Of Tumors")
+hist(bladdercancerg3$NumberOfTumors, main = "No. Tumors > 3cm", xlab="Number Of Tumors")
+
+par(mfrow=c(1,2))
+ggplot(bladdercancer_dat, aes(NumberOfTumors, fill=TumorSize)) + 
+  geom_histogram(binwidth = 1.0) +
+  labs(title = 'Mosaic Plot of Bladder Cancer patients: Number of Tumors & Size', x='Number of Tumors',y='Frequency')
+#Displaying Summary data (descriptives for each size of tumor)
+library(psych)
+describeBy(bladdercancer_dat$NumberOfTumors, group=bladdercancer_dat$TumorSize, mat=FALSE, digits=4)
+
+
+
+
+
+```
+
+
+##My Response:
+
+Based on the mosaic plot and histograms it shows that the frequncy of the data is centered around number 1 which is the number of tumors. The graphs also display that the frequency decreases as the number of tumors increases. This is the case for both sizes of tumors. However, the majority of the data consists centers around 1 tumor and the bulk of which belongs to <= 3cm in size.  There is a postivie skew in the overall data set and each group (<=3cm vs >3cm). The descriptive statistics also provide similar insight. 
+
+Due to this skewness I wonder if a e value for number of tumors would be good to use in fitting a model?  I will create five models:
+1) NumberOfTumors ~ TumorSize
+2) NumberOfTumors ~ TumorSize + Time
+3) NumberOfTumors ~ TumorSize + Time + TumorSize*Time
+4) NumberOfTumors ~ TumorSize*Time
+5) exp(NumberOfTumors) ~ TumorSize
+
+##Problem 1 Part B)
+
+    b) Build a Poisson regression that estimates the effect of size of 
+    tumor on the number of recurrent tumors.  Discuss your results.
+
+
+
+```{r echo=FALSE}
+#Creating data frame of bladdercancer but including a new variable which is e(number of tumors)
+TumorSize <- bladdercancer$tumorsize
+NumberOfTumors <- bladdercancer$number
+Time <- bladdercancer$time
+NumberOfTumorsSq <- (bladdercancer$number^2)
+eNumberOfTumors <- exp(-bladdercancer$number)
+
+bladdercancer_dat <- data.frame (
+  TumorSize,
+  NumberOfTumors,
+  Time,
+  eNumberOfTumors,
+  NumberOfTumorsSq
+  
+  
+)
+
+#fitting the five diferent models 
+tmodel1 <- glm(NumberOfTumors ~ TumorSize, data=bladdercancer_dat, family=poisson())
+tmodel2 <- glm(NumberOfTumors ~ TumorSize + Time, data=bladdercancer_dat, family=poisson())
+tmodel3 <- glm(NumberOfTumors ~ TumorSize + Time + TumorSize*Time, data=bladdercancer_dat, family=poisson())
+tmodel4 <- glm(NumberOfTumors ~ TumorSize*Time, data=bladdercancer_dat, family=poisson())
+tmodel5 <- glm(eNumberOfTumors ~ TumorSize, data=bladdercancer_dat, family=poisson())
+
+```
+
+
+Summary of Model 1 ( NumberOfTumors ~ TumorSize )
+```{r echo=FALSE}
+summary(tmodel1)
+```
+
+Summary of Model 2 ( NumberOfTumors ~ TumorSize + Time )
+```{r echo=FALSE}
+summary(tmodel2)
+```
+
+Summary of Model 3 ( NumberOfTumors ~ TumorSize + Time + TumorSize*Time)
+```{r echo=FALSE}
+summary(tmodel3)
+```
+
+Summary of Model 4 ( NumberOfTumors ~ TumorSize * Time )
+```{r echo=FALSE}
+summary(tmodel4)
+```
+
+Summary Of Model 5 (eNumberOfTumors ~ TumorSize) where number of tumors underwent the exp function 
+```{r echo=FALSE}
+summary(tmodel5)
+```
+
+Comparing the models using anova function with Chisq test
+```{r echo=FALSE}
+anova(tmodel1, tmodel2, tmodel3, tmodel4, tmodel5, test='Chisq')
+```
+
+
+##My Response: 
+
+From the results above I believe  Model 2 or Model 3 would be the best one for explaining the data set. Therefore, my original assumption was in correct. It appears that the more variables and there interactions tend to fit the data better. The Analysis of Deviance tables shows that factoring in TumorSize, time and even Tumorsize*Time yield the best results since the residual deviance tends be lower and are found to be more significant at the chisq test. Therefore I would reject my originally hypothesis and accept two variables for explaing NumberOfTumors is better model. However, there is a greater significance of the inercept one the first model (NumberOfTumors ~ TumorSize). 
+  
+The e value model is interesting... The AIC score is infinity probably due to dealing with negative values. But the residual & null deviance is very low. The pvalue is highly significant at the incercept. 
+
+
+
+    
+##Problem 2. 
+The following data is the number of new AIDS cases in Belgium between the years 1981-1993. Let $t$ denote time
+\begin{verbatim}
+y = c(12, 14, 33, 50, 67, 74, 123, 141, 165, 204, 253, 246, 240)
+t = 1:13
+\end{verbatim}
+Do the following 
+
+##My Assumption:
+
+It would be my speculation that AIDs cases will increase up as time goes on. 
+
+##Problem 2 Part A
+
+    a) Plot the relationship between AIDS cases against time. Comment on the plot
+    
+I will create a data frame from the the two variables and plot scatter plots 
+in both Base-R and ggplot to see if there is a relationship
+
+```{r echo=FALSE}
+#Case of AIDS
+y = c(12, 14, 33, 50, 67, 74, 123, 141, 165, 204, 253, 246, 240)
+#Sequence from 1 to 13 with stepsize 1
+t = seq(from=1, to =13, by=1)
+
+cases <- y
+time <- t
+
+
+dat <- data.frame (
+   cases,
+   time
+)
+
+
+plot(y ~ t, main="Number of AIDs cases vs Time (1981 to 1993)", xlab="Time (In Years)", ylab="No. AIDS Cases" )
+abline(lm(y~t))
+
+ggplot(data=dat, aes(time, cases)) + 
+  geom_point() +
+  geom_smooth(method='lm') +
+  labs(title="Number of AIDs cases vs Time (1981 to 1993)", x="Time (In Years)", y="No. AIDS Cases")
+                          
+```
+
+##My Repsonse:
+
+It appears my original assumption looks correct thus far. As time goes on the number of AIDs cases increases. The scatterplot seems to sugguest a postivie relationship between the two variables.
+
+##Problem 2 Part B
+    
+    b) Fit a Poisson regression model $log(\mu_i)=\beta_0+\beta_1t_i$. 
+    Comment on the model parameters and residuals (deviance) vs Fitted plot.
+
+I will fit a regression model of AIDS cases vs Time and display the residual vs fitted plot and perform a summary of the model
+
+```{r echo=FALSE}
+#Fitting a poisson regression model based on No. Of AIDS cases & time
+aids_model <- glm(cases ~ time, data=dat, family=poisson())
+
+#display the descriptive model stats in a 2:2 matrix
+par(mfrow=c(2,2))
+plot(aids_model)
+
+#displaying just the residuals vs fitted plot for a larger view 
+par(mfrow=c(1,1))
+plot(aids_model, which=1)
+#summary of the overall regression model pertaining to number of AIDS cases vs time.
+summary(aids_model)
+```
+##My Response:
+It Appears that Residuals vs Fitted plot reveal two things. First, due to parabola shape of the plot it might be better using a quadratic expression in the model. Secondly, it appears there are some outliers in the data at points, 1, 2, and 13. 
+
+The summary of the model shows there is a high statistical significance between the two variables. The standard error values are low. However, the NULL deivance and residual deviance appear to be rather high compared to the degress of freedom. 
+
+##Problem 2 Part C
+    
+     c) Now add a quadratic term  in time 
+    (\textit{ i.e., $log(\mu_i)=\beta_0+\beta_1t_i +\beta_2t_i^2$} ) 
+    and fit the model. Comment on the model parameters and assess the residual plots.
+
+##My Assumption:
+
+I believe fitting the model with an additional variable of time being squared will fit the model better than the first one.
+
+I will create a similar model but with an additional expression known as time squared. Therefore AIDS cases ~ time + time^2. Again I will look at the residual vs fitted plot
+
+```{r echo=FALSE}
+#creating a vector with the time squared
+timesq <- t^2
+
+#creating a data frame with the time squard variable
+dat <- data.frame(
+  cases,
+  time,
+  timesq
+)
+
+#constructing a poisson model for predicting number of cases given time and time squared
+aids_model_quad <- glm(cases ~ time + timesq, data=dat, family=poisson())
+
+#display the descriptive model stats in a 2:2 matrix
+par(mfrow=c(2,2))
+plot(aids_model_quad)
+
+#displaying just the residuals vs fitted plot for a larger view 
+par(mfrow=c(1,1))
+plot(aids_model_quad, which=1)
+```
+
+##Problem 3 Part D
+    
+    d) Compare the two models using AIC. Which model is better? 
+
+
+summary of the overall regression model pertaining to Model1 number of AIDS cases ~ time.    
+
+```{r echo=FALSE}
+#summary of the overall regression model pertaining to number of AIDS cases vs time.
+summary(aids_model)
+
+```    
+
+
+summary of the overall regression model pertaining to Model2 number of AIDS cases ~ time + time^2
+
+```{r echo=FALSE}
+#summary of the overall regression model pertaining to number of AIDS cases vs time and time sqaured
+summary(aids_model_quad)
+```   
+
+
+Comparing the two models AIC score
+
+```{r echo=FALSE}
+cat("Model 1 of AIDS Case ~ time AIC is:", aids_model$aic)
+```        
+
+
+
+```{r echo=FALSE}
+cat("Model 2 of AIDS Case ~ time + time^ AIC is:", aids_model_quad$aic)
+```       
+    
+##My Repsonse:
+
+According to my assumption, the second model containing time squared fits the data better. The AIC is much lower and the residual deviance is much lower. The residual vs fitted plot shows more of a cigar shape which is a good thing. 
+    
+    e) Use \textit{ anova()}-function to perform $\chi^2$ test for model selection. 
+    Did adding the quadratic term improve model?
+
+Running anova function on Mode1 and Model2 using Chisq test to see statistical significance of the models and the overall residual deviance.
+
+```{r echo=FALSE}
+#running anova test to compare the non-quadratic model to the quadratic model 
+anova(aids_model, aids_model_quad, test='Chisq')
+```
+
+##My Repsonse:
+
+The anova test confirms my previous arguments. The anova test shows that there is higher significance in the quadratic model and lower residual deviance. In addition, my original hypothesis is correct: As time goes on the number of AIDs cases have been increasing. And this is best fitted the Model 2: AIDS Cases ~ time + time^2
+    
+##Problem 3.
+Load the \textbf{ Default} dataset from \textbf{ISLR} library. The dataset contains information on ten thousand customers. The aim here is to predict which customers will default on their credit card debt. It is a 4 dimensional dataset with 10000 observations. You had developed a logistic regression model on HW \#2. Now consider the following two models 
+\begin{itemize}
+\item Model1 $\rightarrow$ Default = Student + balance 
+\item Model2 $\rightarrow$ Default = Balance 
+\end{itemize}
+For the two competing models do the following
+
+##Problem 3 Part A
+
+    a) With the whole data compare the two models (Use AIC and/or error rate)
+    
+##My Assumption:
+
+If I was going into this data set for the first time, I would assume that Model1 would produce better results. But in Homework_2 I developed and saw scatter plots, boxplots, and descriptive stats that seemed to indicate that student was not always a good indicator for defaulting. It seemed like balance was the statistically significant variable in defaulting.  Therefore, I believe Model2 will perform better with a lower AIC and lower error rate than Model1.
+
+```{r echo=FALSE}
+library(ISLR)
+data(Default)
+
+#converting Default to a datframe and converting default column to binary 1 is yes 0 is no
+default <- ifelse(Default$default=="Yes",1,0)
+student <- Default$student
+balance <- Default$balance
+income <- Default$income
+
+Default <- data.frame(
+  default,
+  student,
+  balance,
+  income
+)
+
+Model1 <- glm(default ~ student + balance, data=Default, family='binomial')
+Model2 <- glm(default ~ balance, data=Default, family='binomial')
+
+
+cat("Model1's AIC:", Model1$aic)
+cat(". Model2's AIC:", Model2$aic)
+
+
+
+
+Tr <- (Default$default)
+
+#Building confusion matrix calculate error rate and accuracy for Model1
+Model1_fit <- predict(Model1, type="response")
+
+Model1_fit_pred <- factor(ifelse(Model1_fit >= 0.50, "Yes","No"))
+Model1_true<- factor(ifelse(Tr >= .5, "Yes","No"))
+Model1_confusion_matrix <- table(Model1_fit_pred, True=Model1_true)
+Model1_error_rate <- (Model1_confusion_matrix[1,2]+Model1_confusion_matrix[2,1])/sum(Model1_confusion_matrix)
+print("Model1 Confusion Matrix:")
+Model1_confusion_matrix
+cat("Model1 Error Rate",Model1_error_rate)
+cat(" Therefore the accuracy of the Model1 is:", 100 - Model1_error_rate*100)
+
+
+
+
+
+#Building confusion matrix calculate error rate and accuracy for Model2
+Model2_fit <- predict(Model2, type="response")
+
+Model2_fit_pred <- factor(ifelse(Model2_fit >= 0.50, "Yes","No"))
+Model2_true<- factor(ifelse(Tr >= .5, "Yes","No"))
+Model2_confusion_matrix <- table(Model2_fit_pred, True=Model2_true)
+Model2_error_rate <- (Model2_confusion_matrix[1,2]+Model2_confusion_matrix[2,1])/sum(Model2_confusion_matrix)
+print("Model2 Confusion Matrix:")
+Model2_confusion_matrix
+cat("Model2 Error Rate",Model2_error_rate)
+cat(" Therefore the accuracy of the Model2 is:", 100 - Model2_error_rate*100)
+
+MSE1 <- mean((predict(Model1, Default, type='response')-Default$default)^2)
+
+MSE2 <- mean((predict(Model2, Default, type='response')-Default$default)^2)
+
+
+cat(". The Model1 MSE is: ", MSE1)
+cat(". The Model2 MSE is: ", MSE2)
+         
+
+
+```
+##My Response:
+
+It appears my hypothesis was incorrect. It seems Model1 has a lower AIC score than Model2 AND Model1 has a very slighly lower error rate than Model2. However, the differences between the models are very slight. 
+
+##Probken 3 Part B
+    
+    b) Use validation set approach and choose the best model. 
+    Be aware  that we have few people who defaulted in the data. 
+
+
+Splitting the data set into 70% for training the data and 30% for testing. The models will be created using the 70% data set and will be tested by looking at the AIC and against 30% testing data set to compare MSEs. 
+
+Model 1 is default ~ stundet + balance
+Model 2 is deafult ~ student
+
+```{r echo=FALSE}
+#Setting a seed
+
+set.seed(311)
+
+#Creating a 70% and 30% split of the data.  
+#70% will be training data and the 30% will be used for testing
+
+#Creating Index1
+index1 <- sample(dim(Default)[1], size=length(Default$default)*.70)
+Default.train <- Default[index1,]
+Default.test <- Default[-index1,]
+
+#creating models using the training data
+Model1 <- glm(default ~ student + balance, data=Default.train, family='binomial')
+Model2 <- glm(default ~ balance, data=Default.train, family='binomial')
+
+
+#Finding the mean standard error for each model that was built on the training data and using testing data set to MSE to see how each model compares
+MSE1b <-  mean((predict(Model1, Default.test, type = "response")-Default.test$default)^2)
+MSE2b <- mean((predict(Model2, Default.test, type = "response")-Default.test$default)^2)
+
+print("After spliting the data set 70% for training and 30% for testing and developing models on the training data testing them against the mean standard errors we see that:")
+cat("Training-test split at 70% training vs 30%$ test MSE for Model1: " , MSE1b)
+cat(" Training-test split at 70% training vs 30%$ test MSE for Model2: ", MSE2b)
+
+cat("Model1 AIC: ", Model1$aic)
+cat("Model2 AIC: ", Model2$aic)
+
+
+
+
+```
+##My Response:
+It Appears Model 1 has a lower AIC and lower MSE therefore, Model1 fits the dataset the best
+
+##Problem 3 Part C
+    
+    c) Use LOOCV approach and choose the best model
+
+##My Repsonse:
+
+Originally, I tried mimicing the code found in the lecture for resampling using Leave One Out Cross Validation. However, after multiple tries rstudio kept getting hung up. In order to get around this I built an empty matrix with 500 rows and 1 column in order to loop through. In the loop I created a training set for i in 1:500. Then fittedd the models for each ith iteration. I also incoporated the MSE for each ith iteration. Then set the ith row to the previously empty matrix. From there I can calculate the mean error rate of the LOOCV method. 
+
+```{r echo=FALSE}
+library(boot)
+LOOCV1 <- matrix(NA,nrow=500, ncol=1)
+for(i in 1:500) {
+train1 <- Default[-i,]
+test1 <- Default[i,]
+Model1_fit <- glm(default ~ balance + student, data=train1, family='binomial')
+MSE1c <- mean((predict(Model1_fit, test1, type='response')-test1$default)^2)
+LOOCV1[i,] <- MSE1c
+} 
+
+
+
+LOOCV2 <- matrix(NA,nrow=500, ncol=1)
+for(i in 1:500) {
+train2 <- Default[-i,]
+test2 <- Default[i,]
+Model2_fit <- glm(default ~ balance, data=train2, family='binomial')
+MSE2c <- mean((predict(Model2_fit, test2, type='response')-test2$default)^2)
+LOOCV2[i,] <- MSE2c
+} 
+
+
+cat("The mean error rate of Model1 using Leave one out cross validation is:", mean(LOOCV1))
+cat("The mean error rate of Model2 using Leave one out cross validation is:", mean(LOOCV2))
+
+
+
+```
+##Problem 3 Part D
+    
+    d) Use 10-fold cross-validation approach and choose the best model
+
+Creating Cros validation for both models with K-10
+
+```{r echo=FALSE}
+
+
+CV10_Model1 <- cv.glm(Default.train, Model1, K=10)$delta[1]
+cat("The mean error rate for 10-fold cross-validation for Model1 is:",CV10_Model1)
+
+CV10_Model2 <- cv.glm(Default.train, Model2, K=10)$delta[1]
+cat(" The mean error rate for 10-fold cross-validation for Model2 is:",CV10_Model2)
+
+
+
+
+```
+##Problem 3 Part E
+
+    Report validation misclassification (error) rate for both models 
+    in each of the three assessment methods. Discuss your results. 
+
+
+```{r echo=FALSE}
+
+#Comparing all the error rates from the different ways of testing and training data. 
+print("Training-test split at 70% training vs 30%$ test MSE")
+cat("Model1 MSE:", MSE1b, "   Model2 MSE:", MSE2b)
+
+```
+
+
+```{r echo=FALSE}
+print("The mean error rate of Model1 using Leave one out cross validation")
+cat("Model1:", mean(LOOCV1), "   Model2:", mean(LOOCV2))
+```
+
+
+```{r echo=FALSE}
+print("The mean error rate for 10-fold cross validation")
+cat("Model1:", CV10_Model1, "    Modele2:", CV10_Model2)
+```
+
+##My Repsonse:
+It appears that after going through all the testing and training data methods Model1 yields the lowest error rate. Therefore, having student and balance as predictors for defaulting yields a lower error rate in the model. 
+
+
+##Problem 4. 
+In the \textbf{ISLR} library load the \textbf{Smarket} dataset. This contains Daily percentage returns for the S\&P 500 stock index between 2001 and 2005. There are 1250 observations and 9 variables. The variable of interest is Direction which is a factor with levels Down and Up indicating whether the market had a positive or negative return on a given day. Since the goal is to predict the direction of the stock market in the future, here it would make sense to use the data from years 2001 - 2004 as training and 2005 as validation. According to this, create a training set and testing set. Perform logistic regression and assess the error rate.  
+
+
+##My Response:
+Creating many different models for testing by using many different variables and interactions between them.
+Also running a quick ggpairs plot of all the variables in order to gain some insight into the data. 
+
+The data will also be subsetted into the two data sets. One is for years 2001 - 2004 for developing a model and then testing in on the 2005 data set. Many different models will be created to see which one is best for fitting to 2005 data.
+
+```{r echo=FALSE}
+data(Smarket)
+head(Smarket)
+
+#creating a new data frame containing all the data found in Smarket but just changing the direction column to binary 1=up and 0=down
+year <- Smarket$Year
+lag1 <- Smarket$Lag1
+lag2 <- Smarket$Lag2
+lag3 <- Smarket$Lag3
+lag4 <- Smarket$Lag4
+lag5 <- Smarket$Lag5
+volume <- Smarket$Volume
+today <- Smarket$Today
+direction <- ifelse(Smarket$Direction=='Up',1,0)
+
+smarket <- data.frame(
+  year,
+  lag1,
+  lag2,
+  lag3,
+  lag4,
+  lag5,
+  volume,
+  today,
+  direction
+)
+library(ggplot2)
+library(GGally)
+
+#doing a quick ggpairs plot to see if the variables help reveal any relationship on the direction
+ggpairs(smarket, mapping=ggplot2::aes(color=abbreviate(direction)))
+
+#Spliting the data set up training all be all years not in 2005 and testing will only contain 2005.
+train <- subset(smarket, smarket$direction!=2005)
+test <- subset(smarket, smarket$direction==2005)
+#Creating many different models to see which one is best
+mod1 <- glm(direction ~ lag1, train, family=binomial())
+mod2 <- glm(direction ~ lag1 + lag2, train, family='binomial')
+mod3 <- glm(direction ~ lag1*lag2, train, family='binomial')
+mod4 <- glm(direction ~ lag1 + lag2 + lag1*lag2, train, family='binomial')
+mod5 <- glm(direction ~ lag1 + lag2 + lag3, train, family='binomial')
+mod6 <- glm(direction ~ lag1 + lag2 + lag3 + lag1*lag2, train, family='binomial')
+mod7 <- glm(direction ~ lag1 + lag2 + lag3 + lag1*lag2 + lag2*lag3, train, family='binomial')
+mod7 <- glm(direction ~ lag1 + lag2 + lag3 + lag1*lag2 + lag2*lag3 + lag1*lag3, train, family='binomial')
+mod8 <- glm(direction ~ lag1 + lag2 + lag3 + lag1*lag2*lag3, train, family='binomial')
+mod9 <- glm(direction ~ lag1 + lag2 + lag3 + lag4, train, family='binomial')
+mod10 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag1*lag2, train, family='binomial')
+mod11 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag1*lag2 +lag2*lag3, train, family='binomial')
+mod12 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag1*lag2 + lag2*lag3 + lag3*lag4, train, family='binomial')
+mod13 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag1*lag2 + lag2*lag3 + lag3*lag4 + lag1*lag3, train, family='binomial')
+mod14 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag1*lag2 + lag2*lag3 + lag3*lag4 + lag1*lag3 + lag2*lag4, train, family='binomial')
+mod15 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag1*lag2 + lag2*lag3 + lag3*lag4 + lag1*lag3 + lag2*lag4 + lag1*lag4, train, family='binomial')
+mod16 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5, train, family='binomial')
+mod17 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + lag1*lag2, train, family='binomial')
+mod18 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + lag1*lag2 + lag2*lag3, train, family='binomial')
+mod19 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + lag1*lag2 + lag2*lag3 + lag3*lag4, train, family='binomial')
+mod20 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + lag1*lag2 + lag2*lag3 + lag3*lag4 + lag1*lag3, train, family='binomial')
+mod21 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + lag1*lag2 + lag2*lag3 + lag3*lag4 + lag1*lag3 + lag1*lag4, train, family='binomial')
+mod22 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + lag1*lag2 + lag2*lag3 + lag3*lag4 + lag1*lag3 + lag1*lag4 + lag2*lag4, train, family='binomial')
+mod23 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + lag1*lag2 + lag2*lag3 + lag3*lag4 + lag1*lag3 + lag1*lag4 + lag2*lag4 + lag1*lag5, train, family='binomial')
+mod24 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + lag1*lag2 + lag2*lag3 + lag3*lag4 + lag1*lag3 + lag1*lag4 + lag2*lag4 + lag1*lag5 + lag2*lag5, train, family='binomial')
+mod25 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + lag1*lag2 + lag2*lag3 + lag3*lag4 + lag1*lag3 + lag1*lag4 + lag2*lag4 + lag1*lag5 + lag2*lag5 + lag3*lag5, train, family='binomial')
+mod26 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + lag1*lag2*lag3*lag4*lag5, train, family='binomial')
+mod27 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + year, train, family='binomial')
+mod28 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + year + volume, train, family='binomial')
+mod29 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + year + volume  + year*volume, train, family='binomial')
+mod30 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + year + volume  + year*volume*lag1*lag2*lag3*lag4*lag5, train, family='binomial')
+mod31 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + year + volume  + today, train, family='binomial')
+mod32 <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + year + volume  + today +  year*volume*today*lag1*lag2*lag3*lag4*lag5, train, family='binomial')
+
+```
+
+
+##My Response:
+Running a anova function with Chisq test to see which model has the most significance while maintaining a lower deviance.
+
+```{r echo=FALSE}
+#Running a anova test with Chisq to see which model has the most significance while maintaining a lower deviance. 
+anova(mod1,	mod2,	mod3,	mod4,	mod5,	mod6,	mod7,	mod8,	mod9,	mod10,	mod11,	mod12,	mod13,	mod14,	mod15,	mod16,	mod17,	mod18,	mod19,	mod20,	mod21,	mod22,	mod23,	mod24,	mod25,	mod26,	mod27,	mod28,	mod29,	mod30,	mod31,	mod32, test='Chisq')
+```
+
+
+##My Response:
+Based on anova chisq test I believe mod23 may obtain the best results without overfitting the data too much. The residual deviance is lower than just a simple model and it is also statisically significant with a Chi score at 0.05798. The deviance is also not too larged compared to the more complex models. 
+
+
+Running a summary of the mod23: direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + lag1*lag2 + lag2*lag3 + lag3*lag4 + lag1*lag3 + lag1*lag4 + lag2*lag4 + lag1*lag5
+
+```{r echo=FALSE}
+summary(mod23)
+```
+##My Response:
+
+Now it is time to test the model. I will use the same methods as found in problem 3.  LOOCV, 10-fold cross validation. 
+
+First I will do the LOOCV one out method. In the loop I created a training set for i in 1:500. Then fitted the models for each ith iteration. I also in coporated the MSE for each ith iteration. Then set the ith row to the previously empty matrix. From there I can calculate the mean error rate of the LOOCV method. 
+
+```{r echo=FALSE}
+
+#Creating an empty matrix with 500 rows and 1 column to loop through using the LOOCV method
+LOOCV23 <- matrix(NA,nrow=500, ncol=1)
+for(i in 1:500) {
+train <- smarket[-i,]
+test <- smarket[i,]
+mod23_fit <- glm(direction ~ lag1 + lag2 + lag3 + lag4 + lag5 + lag1*lag2 + lag2*lag3 + lag3*lag4 + lag1*lag3 + lag1*lag4 + lag2*lag4 + lag1*lag5, train, family='binomial')
+MSE23 <- mean((predict(mod23_fit, test, type='response')-test$direction)^2)
+LOOCV23[i,] <- MSE23
+} 
+
+
+```
+
+
+Next I will perform the 10-fold corss validation method. 
+
+```{r echo=FALSE}
+library(boot)
+CV23 <- cv.glm(train, mod23, K=10)$delta[1]
+```
+
+calculating the MSE for all methods
+
+MSE for 70% vs 30%
+
+```{r echo=FALSE}
+#MSE
+cat("The MSE for mod23 is: ", mean((predict(mod23, test, type='response')-test$direction)^2))
+```
+
+MSE for LOOCV method
+
+```{r echo=FALSE}
+#MSE from the LOOCV method
+cat("The MSE from the LOOCV method for mod23 is: ", mean(LOOCV23))
+```
+
+MSE for 10-fold Cross validation method
+
+```{r echo=FALSE}
+#MSE from the 10-fold Cross validation method
+cat("The MSE from the 10-fold cross validation method for mod23 is: ", CV23)
+```
+
+##My Final Repsonse:
+
+It appears that using the final model there is an error rate of less than 26% for predicting wether the market will move up or down on given day using the 5 lag variables and some interactions between them. It is interesting that the lag variables seem to have some interaction between tham that model how the market will act (up or down). So based on 1 day lag and 5 days lag they seem to help provide some indication of how the stock market will move weather it be up or down.  

@@ -1,0 +1,457 @@
+---
+title: "Homework 10"
+author: "STAT 601"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+##Kevin Kuipers
+##October 30, 2018
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=F,warning=F,echo=F,fig_height=10,fig_width=7,cache = F)
+```
+
+##Problem 1 )
+
+
+1. Consider the respiratory data from the HSAUR3 package.
+
+First I will load the some of the libraries that are needed and the data set.  I will also use the ?repsiratory to underatand the variables and what they are. 
+
+```{r echo=FALSE}
+library(HSAUR3)
+library(gee)
+library(lme4)
+data(respiratory)
+
+#?repsiratory
+
+``` 
+
+##Problem 1 A)
+
+    a. Investigate the use of other correlational structures 
+    than the independence and exchangeable structures used in 
+    the text for the respiratory data.
+
+#Looking at the function to solve Generalized Estimation Equaion Model
+
+
+First I will use the ?gee() command to explore the arguments of the Generalized Estimation Equation Model are and specifically look at the corstr to see what other correlation structures are permitted.
+
+
+```{r echo=FALSE}
+
+#Just uncomment to look at the generalized estimation equation model.
+#gee()
+
+``` 
+
+
+It appears there are 5 different correlation structures other than independence and exchangeable. I will fit a model for each one:
+
+Fixed
+stat_M_dep
+non_stat_M_dep
+AR-M
+unstructured
+
+
+#Rearranging the data
+
+Before fitting the models I will use the same code found in the textbook for creating a baseline status and converting the data to a data frame.  The baseline will be the status for month = 0. The nstat variable is a dummy coding variable.  The code used was found the Textbook from Chapter 14. 
+
+```{r echo=FALSE}
+
+
+resp <- subset(respiratory, month > '0')
+resp$baseline <- rep(subset(respiratory, month == '0')$status,
+                     rep(4, 111))
+resp$nstat <- as.numeric(resp$status == 'good')
+resp$month <- resp$month[, drop = TRUE]
+
+
+names(resp)[names(resp) == 'treatment'] <- 'trt'
+levels(resp$trt)[2] <- 'trt'
+
+
+``` 
+
+#Fitting Models 
+
+
+```{r echo=FALSE}
+library(MESS)
+#
+#resp_fixed <- gee(nstat ~ centre + trt + gender + baseline + age,
+#                  data = resp, family = 'binomial', id = subject,
+#                  corstr = 'fixed', scale.fix = TRUE,
+#                  scale.value = 1)
+
+
+#Fitting a generalized estimation equation with a correlation structure as sat_M_dep
+resp_stat_M_dep <- gee(nstat ~ centre + trt + gender + baseline + age,
+                  data = resp, family = 'binomial', id = subject,
+                  corstr = 'stat_M_dep', scale.fix = TRUE,
+                  scale.value = 1)
+
+#Fitting a generalized estimation equation with a correlation structure as non_sat_M_dep
+resp_non_stat_M_Dep <- gee(nstat ~ centre + trt + gender + baseline + age,
+                  data = resp, family = 'binomial', id = subject,
+                  corstr = 'non_stat_M_dep', scale.fix = TRUE,
+                  scale.value = 1)
+
+#Fitting a generalized estimation equation with a correlation structure as AR-M
+resp_arm <- gee(nstat ~ centre + trt + gender + baseline + age,
+                  data = resp, family = 'binomial', id = subject,
+                  corstr = 'AR-M', scale.fix = TRUE,
+                  scale.value = 1)
+
+
+#Fitting a generalized estimation equation with a correlation structure as unstructured
+resp_unstructured <- gee(nstat ~ centre + trt + gender + baseline + age,
+                  data = resp, family = 'binomial', id = subject,
+                  corstr = 'unstructured', scale.fix = TRUE,
+                  scale.value = 1)
+
+``` 
+
+It turns out that I was not able to run a gee model for a correlation structure as fixed. Rstudio become hung up everytime. So it is still in the code chunk but just commeted it. 
+
+
+##Problem 1 B)
+   
+    b. Which model is the best? Compare the following models: independent, 
+    exchangable, and what ever models you tried in part 
+    (a). Justify your answer. (Hint: use QIC  in MESS library), 
+    MSE, misclassification rate, comparison of naive vs robust Z-score, or another method, 
+    be sure to state your method)
+    
+First I will fit a generalized estimation equation model for both independence and exchangeable correlation structures. Then I  will run QIC and MSE tests to see which models perform the best.   
+    
+```{r echo=FALSE}
+library(geepack)
+
+#Fitting a generalized estimation equation with a correlation structure as independence
+resp_independence <- gee(nstat ~ centre + trt + gender + baseline + age,
+                  data = resp, family = 'binomial', id = subject,
+                  corstr = 'independence', scale.fix = TRUE,
+                  scale.value = 1)
+
+#Fitting a generalized estimation equation with a correlation structure as exchangeable
+resp_exchangeable <- gee(nstat ~ centre + trt + gender + baseline + age,
+                  data = resp, family = 'binomial', id = subject,
+                  corstr = 'exchangeable', scale.fix = TRUE,
+                  scale.value = 1)
+
+
+library('MuMIn')
+#QIC Values for Each model 
+resp_stat_M_dep_QIC <- QIC(resp_stat_M_dep)
+resp_non_stat_M_Dep_QIC <- QIC(resp_non_stat_M_Dep)
+resp_arm_QIC <- QIC(resp_arm)
+resp_unstructured_QIC <- QIC(resp_unstructured)
+resp_independence_QIC <- QIC(resp_independence)
+resp_exchangeable_QIC <- QIC(resp_exchangeable)
+
+
+#MSE Values for each Model
+resp_stat_M_dep_MSE <- mean((resp_stat_M_dep$fitted.values-subset(resp$nstat, resp$nstat != "NA"))^2)
+resp_non_stat_M_Dep_MSE <- mean((resp_non_stat_M_Dep$fitted.values-subset(resp$nstat, resp$nstat != "NA"))^2)
+resp_arm_MSE <- mean((resp_arm$fitted.values-subset(resp$nstat, resp$nstat != "NA"))^2)
+resp_unstructured_MSE <- mean((resp_unstructured$fitted.values-subset(resp$nstat, resp$nstat != "NA"))^2)
+resp_independence_MSE <- mean((resp_independence$fitted.values-subset(resp$nstat, resp$nstat != "NA"))^2)
+resp_exchangeable_MSE <- mean((resp_exchangeable$fitted.values-subset(resp$nstat, resp$nstat != "NA"))^2)
+
+qic_values <-c(resp_stat_M_dep_QIC,resp_non_stat_M_Dep_QIC, resp_arm_QIC, resp_unstructured_QIC, resp_independence_QIC, resp_exchangeable_QIC)
+
+MSE_values <-c(resp_stat_M_dep_MSE,resp_non_stat_M_Dep_MSE, resp_arm_MSE, resp_unstructured_MSE, resp_independence_MSE, resp_exchangeable_MSE)
+
+
+#creating a table of QIC values and MSE Values for each model correlation structure 
+df <- data.frame(QIC = (qic_values), MSE = (MSE_values))
+rownames(df) <- c('stat_M_dep','non_stat_M_Dep','AR-M','Unstructured','Independence','Exchangeable')
+df
+
+```     
+
+
+
+#Unstructured Naive and Robust values 
+
+
+```{r echo=FALSE}
+
+summary(resp_unstructured)$coefficient
+
+
+``` 
+
+
+#Inpendence Naive and Robust values 
+
+
+```{r echo=FALSE}
+
+summary(resp_independence)$coefficient
+
+``` 
+
+
+#Exchangeable Naive and Robust values 
+
+
+```{r echo=FALSE}
+
+summary(resp_exchangeable)$coefficient
+
+``` 
+    
+##Discusion:
+
+After fitting several Generalized Estimation Equation models with different correlation structures it appears that Independence and Exchangeable models have the lowest MSE values.  However, Unstructured has the lowest QIC value with Indepedence and Exchangeable close behind with the same MSE and QIC values. Due to this closeness between QIC and MSE with these three models I decided to look at the Naive and Robust z values.  It appears that independence has the biggest changes between the Naive z and Robust z values.  I prefer a model have not a drastic difference between these two sets of z-values.  Therefore, I want to turn my attention between Exchangeable and unstructured.  They both do not contain as much variance between for the variables in the model and their Naive z vs their Robust z. Due to lower MSE between these two models I would choose the exchangeable model for the model of selection. But they both seem to be performing close the same. 
+    
+
+
+##Problem 2
+
+
+2. The data set schizophrenia2 from HSAUR3 package were collected in a follow-up study of women patients with schizophrenia (Davis, 2002). The binary response recorded at 0, 2, 6, 8 and 10 months after hospitalization was ``thought disorder'' (absent or present). The single covariate is the factor indicating whether a patient had suffered early or late onset of her condition (age of onset less than 20 years or age of onset 20 years or above). The question of interest is whether the course of the illness differs between patients with early and late onset schizophrenia. 
+
+
+```{r echo=FALSE}
+
+#Loading Data set
+data(schizophrenia2)
+
+``` 
+
+
+##Problem 2 A)
+
+    a. plots and summary statistics
+
+
+#Summary Statistics
+
+I will use describeBy on the data set to acquire summary statistics of the variables.  This command is found in the psych library. 
+
+#Onset Less than 20 years old summary
+
+```{r echo=FALSE}
+
+library(psych)
+describeBy(subset(schizophrenia2, onset=='< 20 yrs'))
+
+
+``` 
+
+
+#Onset Greater than 20 years old summary
+
+```{r echo=FALSE}
+
+describeBy(subset(schizophrenia2, onset!='< 20 yrs'))
+
+``` 
+
+
+#Disorder present summary
+
+```{r echo=FALSE}
+
+describeBy(subset(schizophrenia2, disorder=='present'))
+
+
+``` 
+
+
+#Disorder absent summary
+
+```{r echo=FALSE}
+
+describeBy(subset(schizophrenia2, disorder=='absent'))
+
+``` 
+
+#Mosaic Plots
+
+The mosaic plots will also include the missing data as an onset category. I will create binary onset category. If less than 20 years then 0 if the onset category is greater than 20 years then it is 1.  I will also create number variables for the different types of disorder categoryes: 
+Missing is 2
+Present is 0
+Absent is 1 
+
+After doing all this I will put it back into a data frame. 
+
+
+```{r, fig.width=9, fig.height=7}
+
+#creating a binary variable for onset, 0 if less than 20, 1 if greater than 20 years old
+onsetb <- ifelse(schizophrenia2$onset=='< 20 yrs', 0 , 1)
+
+#Creating a category for missing data
+disorderb <- ifelse(is.na(schizophrenia2$disorder), 'missing', ifelse(schizophrenia2$disorder=='present','present',ifelse(schizophrenia2$disorder=='absent','absent','')))
+#creating a data frame with the binary variables
+disorderc <- ifelse(is.na(schizophrenia2$disorder), '2', ifelse(schizophrenia2$disorder=='present','0',ifelse(schizophrenia2$disorder=='absent','1','')))
+
+sciz <- data.frame (
+  subject = schizophrenia2$subject,
+    onset = schizophrenia2$onset,
+    disorder = schizophrenia2$disorder,
+    month = schizophrenia2$month,
+  onsetb = onsetb,
+  disorderb = disorderb,
+  disorderc = disorderc
+)
+
+
+library(vcd)
+library(ggmosaic)
+
+mosaicplot(onset ~ month + disorderb, data=sciz, color=4:6, las=1, main='Mosaic Plot of Onset Schizophrenia Explained by Month & Disorder', xlab='Onset Category',ylab='Month')
+ggplot(data=sciz) + geom_mosaic(aes(x=product(month, onset), fill=disorderb, offset=0.5)) + labs(title='Mosaic Plot of Onset Schizophrenia Explained by Month & Disorder',x='Onset Category',y='Months') + scale_y_continuous(position='left',labels=c(0,2,6,8,10))
+
+
+``` 
+
+#Boxplots
+
+
+```{r echo=FALSE}
+
+#Boxplots of Month vs Disorder category
+
+layout(matrix(1:2, ncol=2))
+boxplot(month ~ disorderb, data=subset(sciz, onset=='< 20 yrs'), ylab='Month', xlab='Disorder Category', main = 'Less than 20 Years')
+
+boxplot(month ~ disorderb, data=subset(sciz, onset!='< 20 yrs'), ylab='Month', xlab='Disorder Category', main = 'Greater than 20 Years')
+
+
+ggplot(sciz, aes(disorderb, month)) + geom_boxplot() + facet_grid(~onset) + labs(title='Boxplots of Disorder Category vs Month',x='Disorder Category',y='Months')
+
+
+
+``` 
+
+
+##Problem 2 B)
+    
+    b. the GEE approach
+
+I will fit GEE models using several different correlation structures.  I will use all the the same correlation structures found in problem 1. I will then compare the Model's QIC score. The formula for fitting the models will be disorder is explained by monthg and onset category.  The library I will use is MuMIn for calculating the QIC scores for the model seleciton pertaining to the GEE model correlation structures.  The lowest QIC score would be the I would choose. 
+
+
+
+```{r echo=FALSE}
+
+library(geepack)
+library(MESS)
+library(gee)
+
+#Fitting a generalized estimation equation with a correlation structure as sat_M_dep
+sciz_stat_M_dep <- gee(disorderc ~ month + onsetb, 
+                       data=sciz, family = 'binomial', id=subject, 
+                       corstr = 'stat_M_dep', scale.fix=TRUE, scale.value = 1)
+
+#Fitting a generalized estimation equation with a correlation structure as non_sat_M_dep
+sciz_non_stat_M_dep <- gee(disorderc ~ month + onsetb, data=sciz, family='binomial', id=subject, 
+    corstr = 'non_stat_M_dep', scale.fix=TRUE, scale.value = 1)
+
+#Fitting a generalized estimation equation with a correlation structure as AR-M
+sciz_arm <- gee(disorderc ~ month + onsetb, data=sciz, family='binomial', id=subject, 
+    corstr = 'AR-M', scale.fix=TRUE, scale.value = 1)
+
+#Fitting a generalized estimation equation with a correlation structure as AR-M
+sciz_unstructured <- gee(disorderc ~ month + onsetb, data=sciz, family='binomial', id=subject, 
+    corstr = 'unstructured', scale.fix=TRUE, scale.value=1)
+
+
+
+#Fitting a generalized estimation equation with a correlation structure as independence
+sciz_independence <- gee(disorderc ~ month + onsetb, data=sciz, family='binomial', id=subject, 
+    corstr = 'independence', scale.fix=TRUE, scale.value = 1)
+
+#Fitting a generalized estimation equation with a correlation structure as exchangeable
+sciz_exchangeable <- gee(disorderc ~ month + onsetb, data=sciz, family='binomial', id=subject, 
+    corstr = 'exchangeable', scale.fix=TRUE, scale.value=1)
+
+
+library(MuMIn)
+
+#Model selection on QIC
+model.sel(sciz_stat_M_dep, sciz_non_stat_M_dep, sciz_arm, sciz_unstructured, sciz_independence, sciz_exchangeable, rank=QIC)
+
+
+
+
+``` 
+
+It appears the unstructured correlation structure produces the lowest QIC value.
+
+
+##Problem 2 C)
+
+    
+    c. mixed effects model (lmer) from previous chapter
+
+#Fitting lmer mixed model with disorder explained by onset & month & (1|subject)
+
+```{r echo=FALSE}
+
+
+sciz1 <- data.frame (
+  subject = as.numeric(schizophrenia2$subject),
+    onset = schizophrenia2$onset,
+    disorder = schizophrenia2$disorder,
+    month = as.numeric(schizophrenia2$month),
+  onsetb = as.numeric(onsetb),
+  disorderb = disorderb,
+  disorderc = as.numeric(disorderc)
+)
+
+
+library("gee")
+library("lme4")
+library("Matrix")
+library("multcomp")
+library('tidyverse')
+
+sciz_lmer <- lmer(disorderc ~ onsetb + month + (1|subject), data=sciz1, REML=FALSE, na.action=na.omit)
+
+``` 
+
+
+#Problem 2 D)
+
+    
+    d. Is there a difference? What model(s) work best? Describe your results.
+
+I will look at the summaries of each model 
+
+#Summary of unstructured correlation
+
+```{r echo=FALSE}
+
+summary(sciz_unstructured)
+
+``` 
+
+#Summary of mixed models approach
+
+
+```{r echo=FALSE}
+
+summary(sciz_lmer)
+cftest(sciz_lmer)
+
+
+``` 
+  
+#Discussion:
+  
+It appears that there are trade offs between both model approaches. If we assume the AIC and QIC are equivelant scores it appears that the GEE method produces better results.  However, if comparing the standard error values in the lmer method to the robust and Naive standard errors, mixed model has lower values. Something that is concerning with the GEE approach is that there is alittle jump in values between the naive and robust standard errors, not huge but something worth mentioning.  The robust Z values are lower than the Z values for the mixed model. When looking at the summary of the residuals between the two models the (Min, Q1, Median, Q3, and Max) the GEE model has lower values. Even though both models perform better in certain ways, I believe the GEE approach outweighs the mixed model.  
+  
+  
+  
